@@ -41,6 +41,7 @@ export default function AudioRecorder({
   const speechRecognitionRef = useRef(null);
   const timerRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const liveTranscriptRef = useRef('');
 
   const speechLangMap = {
     te: 'te-IN',
@@ -69,6 +70,7 @@ export default function AudioRecorder({
   const startRecording = async () => {
     setRecorderError('');
     setLiveTranscript('');
+    liveTranscriptRef.current = '';
     setIndicTranscript('');
     setEditableTranscript('');
     setIsEditing(false);
@@ -157,6 +159,7 @@ export default function AudioRecorder({
 
             const currentLiveText = (finalStr + interimStr).trim();
             if (currentLiveText) {
+              liveTranscriptRef.current = currentLiveText;
               setLiveTranscript(currentLiveText);
             }
           };
@@ -208,28 +211,31 @@ export default function AudioRecorder({
   const handleFinalIndicConformerAsr = async (audioFile) => {
     setIsProcessingAsr(true);
     setRecorderError('');
+    const liveCaptured = (liveTranscriptRef.current || liveTranscript || '').trim();
+
     try {
       const asrResult = await performIndicAsr(audioFile, currentLanguageName);
       const transcript = asrResult?.transcript || '';
-      if (!transcript) {
-        throw new Error('ASR model returned empty transcript.');
+      if (transcript && transcript.trim()) {
+        setIndicTranscript(transcript.trim());
+        setEditableTranscript(transcript.trim());
+        return;
       }
-      setIndicTranscript(transcript);
-      setEditableTranscript(transcript);
+      throw new Error('ASR model returned empty transcript.');
     } catch (err) {
-      console.error('IndicConformer ASR error:', err);
-      // Use what the farmer ACTUALLY spoke from live microphone stream if available
-      if (liveTranscript && liveTranscript.trim()) {
-        setIndicTranscript(liveTranscript.trim());
-        setEditableTranscript(liveTranscript.trim());
+      console.warn('Backend ASR notice, checking live speech stream:', err);
+      // Fallback 1: Use live recognized speech from microphone if available
+      if (liveCaptured) {
+        setIndicTranscript(liveCaptured);
+        setEditableTranscript(liveCaptured);
+        setRecorderError('');
       } else {
         const rawMsg = err?.message || '';
-        const userFriendlyMsg = rawMsg.includes('Errno') || rawMsg.includes('decode')
-          ? 'Voice recording could not be processed clearly. Please try speaking again or type description below.'
-          : rawMsg || 'Voice transcription unavailable. Please type description manually.';
+        const userFriendlyMsg = rawMsg.includes('Errno') || rawMsg.includes('decode') || rawMsg.includes('ASR failed')
+          ? 'Could not transcribe speech automatically. You can type your problem below, or tap Re-record to try speaking again.'
+          : rawMsg || 'Could not transcribe speech automatically. Please type your problem below:';
         setRecorderError(userFriendlyMsg);
-        setIndicTranscript('');
-        setEditableTranscript('');
+        setIsEditing(true);
       }
     } finally {
       setIsProcessingAsr(false);
@@ -460,23 +466,44 @@ export default function AudioRecorder({
               )}
             </div>
           ) : (
-            <div className="playback-actions" style={{ marginTop: '12px' }}>
-              <button
-                type="button"
-                onClick={startRecording}
-                className="btn btn-secondary btn-sm"
-                disabled={disabled}
-              >
-                🔄 Re-record
-              </button>
-              <button
-                type="button"
-                onClick={handleReset}
-                className="btn btn-outline-danger btn-sm"
-                disabled={disabled}
-              >
-                🗑 Remove Audio
-              </button>
+            <div className="transcript-fallback-card" style={{ marginTop: '14px', background: 'var(--color-bg-card, #f8fafc)', padding: '16px', borderRadius: '12px', border: '1px solid var(--color-border, #e2e8f0)' }}>
+              <label className="edit-label" style={{ fontWeight: 600, display: 'block', marginBottom: '8px', color: 'var(--color-text-primary, #1e293b)' }}>
+                ✍️ Type or refine the issue from your voice recording:
+              </label>
+              <textarea
+                className="form-textarea edit-transcript-input"
+                rows={3}
+                value={editableTranscript}
+                onChange={(e) => setEditableTranscript(e.target.value)}
+                placeholder="e.g. వరి పొలంలో ఆకులు పసుపు రంగులోకి మారాయి (Yellow leaves in paddy field)..."
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border, #cbd5e1)', boxSizing: 'border-box' }}
+              />
+              <div className="playback-actions" style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => handleConfirmTranscript(editableTranscript)}
+                  className="btn btn-primary btn-sm btn-confirm-transcript"
+                  disabled={!editableTranscript.trim()}
+                >
+                  ✓ Confirm Transcript
+                </button>
+                <button
+                  type="button"
+                  onClick={startRecording}
+                  className="btn btn-secondary btn-sm"
+                  disabled={disabled}
+                >
+                  🔄 Re-record Voice
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="btn btn-outline-danger btn-sm"
+                  disabled={disabled}
+                >
+                  🗑 Remove Audio
+                </button>
+              </div>
             </div>
           )}
 

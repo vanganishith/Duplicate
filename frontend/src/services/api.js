@@ -564,6 +564,324 @@ export async function getOfficerAdvisory(incidentId) {
   }
 }
 
+/**
+ * Phase 13+: AEO Workspace API Extensions
+ */
+
+export async function officerLogin(credentials) {
+  const res = await fetch(`${API_BASE_URL}/api/v1/officers/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(credentials),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.detail?.message || data?.message || 'Officer login failed');
+  return data;
+}
+
+export async function submitAeoVerification({
+  incidentId,
+  officerId = 'AEO001',
+  officerName = 'Srinivas Rao (AEO)',
+  status = 'CONFIRMED',
+  confirmedDiagnosis,
+  verifiedSeverity = 'HIGH',
+  officialAdvisory,
+  followUpInstructions = '',
+  officerNotes = '',
+  recommendedSchemes = [],
+}) {
+  const res = await fetch(`${API_BASE_URL}/api/v1/incidents/${incidentId}/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      officer_id: officerId,
+      officer_name: officerName,
+      status,
+      confirmed_diagnosis: confirmedDiagnosis,
+      verified_severity: verifiedSeverity,
+      official_advisory: officialAdvisory,
+      follow_up_instructions: followUpInstructions,
+      officer_notes: officerNotes,
+      recommended_schemes: recommendedSchemes,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.detail?.message || data?.message || 'Failed to record AEO verification');
+  return data;
+}
+
+export async function sendCaseMessage({
+  incidentId,
+  senderType = 'OFFICER',
+  senderId = 'AEO001',
+  senderName = 'Srinivas Rao (AEO)',
+  message,
+  messageType = 'TEXT',
+}) {
+  const res = await fetch(`${API_BASE_URL}/api/v1/incidents/${incidentId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sender_type: senderType,
+      sender_id: senderId,
+      sender_name: senderName,
+      message,
+      message_type: messageType,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.detail?.message || data?.message || 'Failed to send message');
+  return data;
+}
+
+export async function getCaseMessages(incidentId) {
+  const res = await fetch(`${API_BASE_URL}/api/v1/incidents/${incidentId}/messages`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.detail?.message || 'Failed to fetch messages');
+  return data;
+}
+
+export async function submitCaseFollowup({
+  incidentId,
+  farmerId,
+  farmerName,
+  notes,
+  imageUrl,
+  voiceText,
+}) {
+  const res = await fetch(`${API_BASE_URL}/api/v1/incidents/${incidentId}/followups`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      farmer_id: farmerId,
+      farmer_name: farmerName,
+      notes,
+      image_url: imageUrl,
+      voice_text: voiceText,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.detail?.message || 'Failed to submit follow-up');
+  return data;
+}
+
+export async function reviewCaseFollowup({
+  incidentId,
+  followupId,
+  officerId = 'AEO001',
+  officerName = 'Srinivas Rao (AEO)',
+  officerAssessment,
+  comparisonStatus = 'IMPROVING',
+  newAdvisory = '',
+  baselineImage = null,
+  followupImage = null,
+  crop = 'Cotton',
+  initialDiagnosis = 'Pest infestation',
+  farmerNotes = '',
+}) {
+  const res = await fetch(`${API_BASE_URL}/api/v1/incidents/${incidentId}/followups/${followupId}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      officer_id: officerId,
+      officer_name: officerName,
+      officer_assessment: officerAssessment,
+      comparison_status: comparisonStatus,
+      new_advisory: newAdvisory,
+      baseline_image: baselineImage,
+      followup_image: followupImage,
+      crop,
+      initial_diagnosis: initialDiagnosis,
+      farmer_notes: farmerNotes,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.detail?.message || 'Failed to submit follow-up review');
+  return data;
+}
+
+export async function scheduleFieldVisit({
+  incidentId,
+  officerId = 'AEO001',
+  officerName = 'Srinivas Rao (AEO)',
+  scheduledDate,
+  scheduledTime = '10:00 AM',
+  purpose = 'Field Inspection',
+  farmerNotes = '',
+}) {
+  const res = await fetch(`${API_BASE_URL}/api/v1/incidents/${incidentId}/field-visits`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      officer_id: officerId,
+      officer_name: officerName,
+      scheduled_date: scheduledDate,
+      scheduled_time: scheduledTime,
+      purpose,
+      farmer_notes: farmerNotes,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.detail?.message || 'Failed to schedule visit');
+  return data;
+}
+
+export async function getScheduledFieldVisits({ officerId, statusFilter } = {}) {
+  const params = new URLSearchParams();
+  if (officerId) params.append('officer_id', officerId);
+  if (statusFilter) params.append('status_filter', statusFilter);
+  const res = await fetch(`${API_BASE_URL}/api/v1/aeo/field-visits?${params.toString()}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error('Failed to fetch field visits');
+  return data;
+}
+
+export async function completeFieldVisit({
+  incidentId,
+  visitId,
+  officerNotes = '',
+  findings = '',
+  actionTaken = '',
+}) {
+  const res = await fetch(`${API_BASE_URL}/api/v1/incidents/${incidentId}/field-visits/${visitId}/complete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      officer_notes: officerNotes,
+      findings,
+      action_taken: actionTaken,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.detail?.message || 'Failed to complete visit');
+  return data;
+}
+
+export async function escalateIncident({
+  incidentId,
+  officerId = 'AEO001',
+  officerName = 'Srinivas Rao (AEO)',
+  targetAuthority = 'Mandal Agricultural Officer (AO)',
+  reason,
+  urgency = 'HIGH',
+}) {
+  const res = await fetch(`${API_BASE_URL}/api/v1/incidents/${incidentId}/escalate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      officer_id: officerId,
+      officer_name: officerName,
+      target_authority: targetAuthority,
+      reason,
+      urgency,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.detail?.message || 'Failed to escalate incident');
+  return data;
+}
+
+export async function getGovernmentSupport(incidentId) {
+  const res = await fetch(`${API_BASE_URL}/api/v1/incidents/${incidentId}/government-support`);
+  const data = await res.json();
+  if (!res.ok) throw new Error('Failed to fetch government support schemes');
+  return data;
+}
+
+export async function getClusterDetails(clusterId) {
+  const res = await fetch(`${API_BASE_URL}/api/v1/clusters/${clusterId}/details`);
+  const data = await res.json();
+  if (!res.ok) throw new Error('Failed to fetch cluster details');
+  return data;
+}
+
+export async function getAeoAnalytics(assignedArea) {
+  const params = assignedArea ? `?assigned_area=${encodeURIComponent(assignedArea)}` : '';
+  const res = await fetch(`${API_BASE_URL}/api/v1/aeo/analytics${params}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error('Failed to fetch AEO analytics');
+  return data;
+}
+
+export async function getAeoNotifications(officerId) {
+  const params = officerId ? `?officer_id=${encodeURIComponent(officerId)}` : '';
+  const res = await fetch(`${API_BASE_URL}/api/v1/aeo/notifications${params}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error('Failed to fetch notifications');
+  return data;
+}
+
+export async function getFarmerHistory(farmerId) {
+  const res = await fetch(`${API_BASE_URL}/api/v1/farmers/${farmerId}/history`);
+  const data = await res.json();
+  if (!res.ok) throw new Error('Failed to fetch farmer history');
+  return data;
+}
+
+export async function analyzeIncidentMultimodal(incidentId) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/incidents/${incidentId}/analyze-multimodal`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.message || `Failed with status ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to run multimodal analysis on incident:', error);
+    throw error;
+  }
+}
+
+/**
+ * Fetches 3-4 genuine historical similar cases for an incident.
+ */
+export async function getSimilarIssues(incidentId, language = 'Telugu') {
+  try {
+    const encodedLang = encodeURIComponent(language || 'Telugu');
+    const response = await fetch(`${API_BASE_URL}/api/v1/incidents/${incidentId}/similar-issues?language=${encodedLang}`);
+    if (!response.ok) {
+      return { success: true, similar_issues: [] };
+    }
+    return await response.json();
+  } catch (error) {
+    console.warn('Failed to fetch similar issues:', error);
+    return { success: true, similar_issues: [] };
+  }
+}
+
+/**
+ * Attaches farmer confirmation of similar issues to the same incident.
+ */
+export async function confirmSimilarIssues(incidentId, matchedIncidentIds, farmerPhone = null, farmerName = null) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/incidents/${incidentId}/confirm-similar`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        matched_incident_ids: matchedIncidentIds || [],
+        farmer_phone: farmerPhone,
+        farmer_name: farmerName,
+      }),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to record similar issue confirmation');
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error confirming similar issues:', error);
+    throw error;
+  }
+}
+
 export default {
   checkHealth,
   submitIncident,
@@ -573,6 +891,7 @@ export default {
   analyzeConfirmedTranscript,
   getIncident,
   listIncidents,
+  analyzeIncidentMultimodal,
   startWorkOnIncident,
   rejectIncident,
   getMapOverview,
@@ -582,6 +901,23 @@ export default {
   updateCaseStatus,
   submitOfficerAdvisory,
   getOfficerAdvisory,
+  officerLogin,
+  submitAeoVerification,
+  sendCaseMessage,
+  getCaseMessages,
+  submitCaseFollowup,
+  reviewCaseFollowup,
+  scheduleFieldVisit,
+  getScheduledFieldVisits,
+  completeFieldVisit,
+  escalateIncident,
+  getGovernmentSupport,
+  getClusterDetails,
+  getAeoAnalytics,
+  getAeoNotifications,
+  getFarmerHistory,
+  getSimilarIssues,
+  confirmSimilarIssues,
   API_BASE_URL,
 };
 

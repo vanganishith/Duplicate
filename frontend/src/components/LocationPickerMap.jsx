@@ -165,6 +165,39 @@ export default function LocationPickerMap({
         reverseGeocode(parseFloat(lat.toFixed(6)), parseFloat(lng.toFixed(6)));
       });
 
+      // If coordinates not set yet, automatically attempt GPS location fetch
+      if (!latitude || !longitude) {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const lat = parseFloat(pos.coords.latitude.toFixed(6));
+              const lng = parseFloat(pos.coords.longitude.toFixed(6));
+              marker.setLatLng([lat, lng]);
+              map.setView([lat, lng], 15);
+              reverseGeocode(lat, lng);
+            },
+            () => {
+              if (onLocationChange) {
+                onLocationChange({
+                  latitude: defaultLat,
+                  longitude: defaultLng,
+                  area: area || '',
+                  landmark: landmark || '',
+                });
+              }
+            },
+            { enableHighAccuracy: true, timeout: 8000 }
+          );
+        } else if (onLocationChange) {
+          onLocationChange({
+            latitude: defaultLat,
+            longitude: defaultLng,
+            area: area || '',
+            landmark: landmark || '',
+          });
+        }
+      }
+
       mapInstanceRef.current = map;
       markerRef.current = marker;
     }

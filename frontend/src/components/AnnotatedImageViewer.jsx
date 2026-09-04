@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 
 /**
  * Formats internal model snake_case labels into human-readable Title Case.
@@ -31,23 +31,30 @@ function getQualityDisplay(quality) {
 }
 
 /**
- * Phase 5F: AEO Annotated Image Viewer
+ * Dual-Layer AEO Annotated Image Viewer
  * Renders the original farmer photo untouched, with a responsive transparent SVG overlay
- * visualizing persisted YOLO11 disease bounding boxes without browser-side AI inference.
+ * visualizing BOTH:
+ *  1. Local YOLO11 computer vision detections (Red #ef4444)
+ *  2. Featherless Qwen3-VL multimodal visual mappings (Purple #8b5cf6)
+ * Supports independent toggling of both layers, interactive legend, and detailed symptom cards.
  */
 export default function AnnotatedImageViewer({
   photoUrl,
   photos = [],
   visionData = null,
+  visualMappings = [],
+  multimodalData = null,
   altText = 'Farmer crop evidence',
 }) {
   const [viewMode, setViewMode] = useState('ai'); // 'ai' | 'original'
+  const [showYolo, setShowYolo] = useState(true);
+  const [showQwen, setShowQwen] = useState(true);
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
   const [naturalDimensions, setNaturalDimensions] = useState(null);
   const imgRef = useRef(null);
 
   // Normalize photo list from either visionData.images, photos array, or photoUrl
-  const photoList = React.useMemo(() => {
+  const photoList = useMemo(() => {
     if (Array.isArray(visionData?.images) && visionData.images.length > 0) {
       return visionData.images.map((img, i) => ({
         index: i,
@@ -88,6 +95,18 @@ export default function AnnotatedImageViewer({
     return [];
   }, [photoUrl, photos, visionData]);
 
+  // Extract Qwen visual mappings for active photo
+  const activeVisualMappings = useMemo(() => {
+    const list = Array.isArray(visualMappings) && visualMappings.length > 0
+      ? visualMappings
+      : (Array.isArray(multimodalData?.visual_mappings) ? multimodalData.visual_mappings : []);
+
+    return list.filter((m) => {
+      if (m.image_index === undefined || m.image_index === null) return activePhotoIdx === 0;
+      return m.image_index === activePhotoIdx || m.image_index === (activePhotoIdx + 1);
+    });
+  }, [visualMappings, multimodalData, activePhotoIdx]);
+
   // If no photos exist for this incident
   if (photoList.length === 0) {
     return (
@@ -120,7 +139,9 @@ export default function AnnotatedImageViewer({
   const isAnalysisFailed = visionStatus === 'analysis_failed';
   const isNonAgricultural = visionStatus === 'non_agricultural';
   const isLowQuality = visionStatus === 'low_quality';
-  const hasNoDetections = !isAnalysisFailed && !isNonAgricultural && !isLowQuality && detections.length === 0;
+  const hasNoDetections = !isAnalysisFailed && !isNonAgricultural && !isLowQuality && detections.length === 0 && activeVisualMappings.length === 0;
+
+  const totalFindings = (detections.length || 0) + (activeVisualMappings.length || 0);
 
   return (
     <div className="aeo-annotated-viewer" data-testid="aeo-annotated-viewer">
@@ -204,10 +225,86 @@ export default function AnnotatedImageViewer({
             role="tab"
             aria-selected={viewMode === 'ai'}
           >
-            AI Findings {detections.length > 0 ? `(${detections.length})` : ''}
+            AI Findings {totalFindings > 0 ? `(${totalFindings})` : ''}
           </button>
         </div>
       </div>
+
+      {/* Layer Toggles & Dual-AI Legend (Only in AI Findings mode) */}
+      {viewMode === 'ai' && (
+        <div
+          className="viewer-layers-legend-bar"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+            padding: '10px 14px',
+            background: '#1e293b',
+            borderRadius: '8px',
+            border: '1px solid #334155',
+            fontSize: '0.8125rem',
+          }}
+          data-testid="viewer-layers-legend-bar"
+        >
+          {/* Layer Checkbox Toggles */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 600, color: '#94a3b8' }}>Visible AI Layers:</span>
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                color: showYolo ? '#f87171' : '#64748b',
+                fontWeight: 600,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={showYolo}
+                onChange={(e) => setShowYolo(e.target.checked)}
+                style={{ accentColor: '#ef4444', cursor: 'pointer' }}
+                data-testid="toggle-yolo-layer-checkbox"
+              />
+              <span>🔴 YOLO11 Findings ({detections.length})</span>
+            </label>
+
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                color: showQwen ? '#a78bfa' : '#64748b',
+                fontWeight: 600,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={showQwen}
+                onChange={(e) => setShowQwen(e.target.checked)}
+                style={{ accentColor: '#8b5cf6', cursor: 'pointer' }}
+                data-testid="toggle-qwen-layer-checkbox"
+              />
+              <span>🟣 Qwen3-VL Spatial Mappings ({activeVisualMappings.length})</span>
+            </label>
+          </div>
+
+          {/* Legend */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.75rem', color: '#cbd5e1' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: '#ef4444', display: 'inline-block' }}></span>
+              CV Detection
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: '#8b5cf6', display: 'inline-block' }}></span>
+              Multimodal Mapping
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Main Image + SVG Overlay Container */}
       <div className="viewer-media-viewport">
@@ -230,8 +327,8 @@ export default function AnnotatedImageViewer({
             data-testid="original-photo-img"
           />
 
-          {/* 2. Transparent Responsive SVG Overlay (Strictly isolated to active photo's detections) */}
-          {viewMode === 'ai' && !isAnalysisFailed && detections.length > 0 && (
+          {/* 2. Transparent Responsive SVG Overlay (Both YOLO and Qwen visual mappings) */}
+          {viewMode === 'ai' && !isAnalysisFailed && ((showYolo && detections.length > 0) || (showQwen && activeVisualMappings.length > 0)) && (
             <svg
               className="vision-svg-overlay"
               viewBox={`0 0 ${imageWidth} ${imageHeight}`}
@@ -247,12 +344,16 @@ export default function AnnotatedImageViewer({
               data-testid="vision-svg-overlay"
             >
               <defs>
-                <filter id="box-glow" x="-10%" y="-10%" width="120%" height="120%">
+                <filter id="box-glow-yolo" x="-10%" y="-10%" width="120%" height="120%">
                   <feDropShadow dx="0" dy="1" stdDeviation="2" floodColor="#000000" floodOpacity="0.8" />
+                </filter>
+                <filter id="box-glow-qwen" x="-10%" y="-10%" width="120%" height="120%">
+                  <feDropShadow dx="0" dy="1" stdDeviation="2" floodColor="#1e1b4b" floodOpacity="0.8" />
                 </filter>
               </defs>
 
-              {detections.map((det, index) => {
+              {/* LAYER 1: YOLO11 Computer Vision Detections (Red) */}
+              {showYolo && detections.map((det, index) => {
                 const { bbox, label, confidence } = det;
                 if (!bbox) return null;
 
@@ -260,7 +361,7 @@ export default function AnnotatedImageViewer({
                 const y = Math.max(0, bbox.y1);
                 const width = Math.max(1, bbox.x2 - bbox.x1);
                 const height = Math.max(1, bbox.y2 - bbox.y1);
-                const labelText = `${formatDiseaseLabel(label)} • ${(Number(confidence) * 100).toFixed(1)}%`;
+                const labelText = `🔴 YOLO: ${formatDiseaseLabel(label)} • ${(Number(confidence) * 100).toFixed(1)}%`;
 
                 const badgeHeight = Math.max(22, Math.round(imageHeight * 0.035));
                 const badgeWidth = Math.max(110, Math.round(labelText.length * (imageWidth * 0.011)));
@@ -269,7 +370,7 @@ export default function AnnotatedImageViewer({
                 const badgeX = Math.min(x, Math.max(4, imageWidth - badgeWidth - 4));
 
                 return (
-                  <g key={`det-${index}`} className="detection-box-group" data-testid={`detection-box-${index}`}>
+                  <g key={`yolo-det-${index}`} className="detection-box-group" data-testid={`detection-box-${index}`}>
                     <rect
                       x={x}
                       y={y}
@@ -278,16 +379,17 @@ export default function AnnotatedImageViewer({
                       fill="rgba(239, 68, 68, 0.16)"
                       stroke="#ef4444"
                       strokeWidth={Math.max(2, Math.round(imageWidth * 0.0035))}
-                      strokeDasharray="none"
                       rx={Math.max(2, Math.round(imageWidth * 0.004))}
                     />
 
+                    {/* Corner accents */}
                     <rect x={x - 2} y={y - 2} width={8} height={8} fill="#ffffff" stroke="#ef4444" strokeWidth="1.5" />
                     <rect x={x + width - 6} y={y - 2} width={8} height={8} fill="#ffffff" stroke="#ef4444" strokeWidth="1.5" />
                     <rect x={x - 2} y={y + height - 6} width={8} height={8} fill="#ffffff" stroke="#ef4444" strokeWidth="1.5" />
                     <rect x={x + width - 6} y={y + height - 6} width={8} height={8} fill="#ffffff" stroke="#ef4444" strokeWidth="1.5" />
 
-                    <g filter="url(#box-glow)">
+                    {/* Label Badge */}
+                    <g filter="url(#box-glow-yolo)">
                       <rect
                         x={badgeX}
                         y={badgeY}
@@ -302,6 +404,76 @@ export default function AnnotatedImageViewer({
                         x={badgeX + 8}
                         y={badgeY + badgeHeight * 0.72}
                         fill="#ffffff"
+                        fontSize={fontSize}
+                        fontFamily="system-ui, -apple-system, sans-serif"
+                        fontWeight="700"
+                        letterSpacing="0.02em"
+                      >
+                        {labelText}
+                      </text>
+                    </g>
+                  </g>
+                );
+              })}
+
+              {/* LAYER 2: Qwen3-VL Multimodal Visual Mappings (Purple/Indigo) */}
+              {showQwen && activeVisualMappings.map((mapping, mIdx) => {
+                const nb = mapping.bbox_normalized;
+                if (!nb) return null;
+
+                // Convert normalized 0.0-1.0 coords to SVG viewport dimensions
+                const x = Math.max(0, Math.round(nb.x1 * imageWidth));
+                const y = Math.max(0, Math.round(nb.y1 * imageHeight));
+                const width = Math.max(2, Math.round((nb.x2 - nb.x1) * imageWidth));
+                const height = Math.max(2, Math.round((nb.y2 - nb.y1) * imageHeight));
+                const shortLabel = mapping.label ? mapping.label.replace(/^Brown circular lesion area observed on /i, 'Lesion on ') : 'Symptom Area';
+                const labelText = `🟣 Qwen3-VL: ${shortLabel} • ${Math.round((mapping.confidence || 0.85) * 100)}%`;
+
+                const badgeHeight = Math.max(22, Math.round(imageHeight * 0.035));
+                const badgeWidth = Math.max(120, Math.round(labelText.length * (imageWidth * 0.0105)));
+                const fontSize = Math.max(11, Math.round(imageHeight * 0.023));
+                // Position label on bottom inside or top outside
+                const badgeY = y + height + badgeHeight + 4 <= imageHeight
+                  ? y + height + 2
+                  : (y > badgeHeight + 6 ? y - badgeHeight - 4 : y + 4);
+                const badgeX = Math.min(x, Math.max(4, imageWidth - badgeWidth - 4));
+
+                return (
+                  <g key={`qwen-mapping-${mIdx}`} className="qwen-mapping-box-group" data-testid={`qwen-mapping-box-${mIdx}`}>
+                    <rect
+                      x={x}
+                      y={y}
+                      width={width}
+                      height={height}
+                      fill="rgba(139, 92, 246, 0.16)"
+                      stroke="#8b5cf6"
+                      strokeWidth={Math.max(2, Math.round(imageWidth * 0.0035))}
+                      strokeDasharray="6 3"
+                      rx={Math.max(2, Math.round(imageWidth * 0.004))}
+                    />
+
+                    {/* Corner accents */}
+                    <rect x={x - 2} y={y - 2} width={8} height={8} fill="#ffffff" stroke="#8b5cf6" strokeWidth="1.5" />
+                    <rect x={x + width - 6} y={y - 2} width={8} height={8} fill="#ffffff" stroke="#8b5cf6" strokeWidth="1.5" />
+                    <rect x={x - 2} y={y + height - 6} width={8} height={8} fill="#ffffff" stroke="#8b5cf6" strokeWidth="1.5" />
+                    <rect x={x + width - 6} y={y + height - 6} width={8} height={8} fill="#ffffff" stroke="#8b5cf6" strokeWidth="1.5" />
+
+                    {/* Label Badge */}
+                    <g filter="url(#box-glow-qwen)">
+                      <rect
+                        x={badgeX}
+                        y={badgeY}
+                        width={badgeWidth}
+                        height={badgeHeight}
+                        fill="#1e1b4b"
+                        stroke="#8b5cf6"
+                        strokeWidth="1.5"
+                        rx="4"
+                      />
+                      <text
+                        x={badgeX + 8}
+                        y={badgeY + badgeHeight * 0.72}
+                        fill="#f5f3ff"
                         fontSize={fontSize}
                         fontFamily="system-ui, -apple-system, sans-serif"
                         fontWeight="700"
@@ -367,34 +539,94 @@ export default function AnnotatedImageViewer({
         </div>
       )}
 
-      {/* Detections List & Detailed Breakdown for the Active Photo */}
-      {viewMode === 'ai' && detections.length > 0 && (
-        <div className="viewer-detections-list" data-testid="detections-list">
-          <h5 className="detections-list-title">Detected Visual Indications for Photo {activePhotoIdx + 1} ({detections.length}):</h5>
-          <div className="detection-items-grid">
-            {detections.map((det, idx) => (
-              <div key={`item-${idx}`} className="detection-item-card" data-testid={`detection-item-${idx}`}>
-                <div className="item-badge-row">
-                  <span className="item-label-chip">🔍 {formatDiseaseLabel(det.label)}</span>
-                  <span className="item-confidence-tag">
-                    AI visual indication: {(Number(det.confidence) * 100).toFixed(1)}%
-                  </span>
-                </div>
-                {det.bbox && (
-                  <span className="item-bbox-meta">
-                    Region: [{det.bbox.x1}, {det.bbox.y1}] to [{det.bbox.x2}, {det.bbox.y2}] px
-                  </span>
-                )}
+      {/* Detections & Spatial Mappings Lists */}
+      {viewMode === 'ai' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {/* 1. YOLO11 Detections List */}
+          {detections.length > 0 && (
+            <div className="viewer-detections-list" data-testid="detections-list">
+              <h5 className="detections-list-title" style={{ color: '#f87171' }}>
+                🔴 Computer Vision Detections (YOLO11) &bull; Photo {activePhotoIdx + 1} ({detections.length}):
+              </h5>
+              <div className="detection-items-grid">
+                {detections.map((det, idx) => (
+                  <div key={`item-${idx}`} className="detection-item-card" data-testid={`detection-item-${idx}`}>
+                    <div className="item-badge-row">
+                      <span className="item-label-chip">🔍 {formatDiseaseLabel(det.label)}</span>
+                      <span className="item-confidence-tag">
+                        AI visual indication: {(Number(det.confidence) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    {det.bbox && (
+                      <span className="item-bbox-meta" style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
+                        Pixel Bounds: [{det.bbox.x1}, {det.bbox.y1}] to [{det.bbox.x2}, {det.bbox.y2}] px
+                      </span>
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+
+          {/* 2. Qwen3-VL Spatial Mappings List */}
+          {activeVisualMappings.length > 0 && (
+            <div
+              className="viewer-detections-list"
+              style={{ background: '#1e1b4b', border: '1px solid #4338ca' }}
+              data-testid="qwen-mappings-list"
+            >
+              <h5 className="detections-list-title" style={{ color: '#c4b5fd' }}>
+                🟣 Multimodal Visual Mappings (Qwen3-VL) &bull; Photo {activePhotoIdx + 1} ({activeVisualMappings.length}):
+              </h5>
+              <div className="detection-items-grid">
+                {activeVisualMappings.map((m, mIdx) => (
+                  <div
+                    key={`qwen-card-${mIdx}`}
+                    className="detection-item-card"
+                    style={{ background: '#0f172a', border: '1px solid #4f46e5' }}
+                    data-testid={`qwen-mapping-item-${mIdx}`}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                        <span style={{ fontWeight: 700, fontSize: '0.875rem', color: '#c4b5fd' }}>
+                          🎯 {m.label || 'Symptom Region'}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            background: '#312e81',
+                            color: '#e0e7ff',
+                          }}
+                        >
+                          Qwen Confidence: {Math.round((m.confidence || 0.85) * 100)}%
+                        </span>
+                      </div>
+                      {m.description && (
+                        <p style={{ margin: '2px 0 0 0', fontSize: '0.8125rem', color: '#cbd5e1', lineHeight: 1.4 }}>
+                          {m.description}
+                        </p>
+                      )}
+                      {m.bbox_normalized && (
+                        <span style={{ fontSize: '0.725rem', color: '#818cf8', marginTop: '2px' }}>
+                          Normalized Region: [{m.bbox_normalized.x1.toFixed(2)}, {m.bbox_normalized.y1.toFixed(2)}] to [{m.bbox_normalized.x2.toFixed(2)}, {m.bbox_normalized.y2.toFixed(2)}]
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* Mandatory AEO Explanatory Authority Banner */}
       <div className="aeo-authority-footnote">
         <p>
-          <strong>Notice:</strong> AI visual findings are preliminary indications based on the farmer&apos;s photo.
+          <strong>Notice:</strong> AI visual findings and spatial mappings are preliminary indications based on the farmer&apos;s photo.
           They are not a confirmed diagnosis. Final assessment is by the Agricultural Extension Officer.
         </p>
       </div>

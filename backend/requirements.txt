@@ -10,3 +10,6 @@ numpy>=1.26.0
 huggingface_hub>=0.20.0
 onnxruntime>=1.17.0
 gtts>=2.2.0
+av>=14.0.0
+torch>=2.2.0
+transformers>=4.40.0

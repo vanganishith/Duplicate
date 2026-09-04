@@ -276,7 +276,14 @@ class TestPhase5Persistence(unittest.TestCase):
         mock_db.table.side_effect = table_router
         
         photo_bytes = self._create_sample_photo()
-        response = self.client.post(
+        with patch("app.api.v1.incidents.evaluate_multimodal_evidence") as mock_eval_mm:
+            mock_eval_mm.return_value = {
+                "overall_relevance": "RELEVANT",
+                "images": [{"image_index": 1, "status": "RELEVANT"}],
+                "assessment": {"relationship": "CONSISTENT", "summary": "Evidence verified"},
+                "safe_aeo_approach": "Field verification"
+            }
+            response = self.client.post(
             "/api/v1/incidents/upload",
             data={
                 "farmer_name": "Ravi",

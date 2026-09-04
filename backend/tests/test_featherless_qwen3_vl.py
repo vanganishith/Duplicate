@@ -439,6 +439,298 @@ class TestFeatherlessQwen3VL(unittest.TestCase):
         import asyncio
         asyncio.run(self._async_test_8_featherless_api_unavailable())
 
+    # =========================================================================
+    # TEST 9: All Healthy Crop Photos -> Rejected with specific retry message
+    # =========================================================================
+    @patch("app.api.v1.incidents.get_supabase_client")
+    @patch("app.api.v1.incidents.evaluate_multimodal_evidence")
+    @patch("app.api.v1.incidents.process_multiple_vision_for_incident")
+    @patch("app.api.v1.incidents.create_farmer_incident")
+    def test_9_healthy_crop_photo_rejection(
+        self, mock_create_incident, mock_vision, mock_eval_mm, mock_get_supabase
+    ):
+        mock_db = MagicMock()
+        mock_get_supabase.return_value = mock_db
+        mock_db.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
+
+        inc_id = str(uuid.uuid4())
+        mock_create_incident.return_value = {
+            "success": True,
+            "incident_id": inc_id,
+            "farmer_id": "farmer-12345",
+            "reference_id": "REF-8888",
+            "message": "Incident submitted",
+            "photos": ["/uploads/photos/healthy_leaf.jpg"]
+        }
+        mock_vision.return_value = {"images": []}
+
+        # Multimodal AI determines plant is completely healthy, no symptoms visible
+        mock_eval_mm.return_value = {
+            "overall_relevance": "HEALTHY_CROP",
+            "images": [
+                {
+                    "image_index": 1,
+                    "status": "HEALTHY_CROP",
+                    "relationship_to_complaint": "The photo shows lush green healthy chilli foliage with zero visible symptoms of curling, yellowing, or pests.",
+                    "visual_evidence": [],
+                    "limitations": []
+                }
+            ],
+            "assessment": {
+                "relationship": "INCONSISTENT",
+                "summary": "Photo shows a completely healthy plant, inconsistent with reported disease.",
+                "requires_aeo_verification": True
+            },
+            "safe_aeo_approach": "Farmer should upload a photo of affected or damaged parts."
+        }
+
+        resp = self.client.post(
+            "/api/v1/incidents/upload",
+            data={
+                "farmer_name": "Ramesh",
+                "farmer_phone": "9876543210",
+                "crop": "Chilli",
+                "description": "Leaves are curling",
+                "language": "English"
+            },
+            files=[("photos", ("healthy_chilli.jpg", b"fake-healthy-bytes" * 10, "image/jpeg"))]
+        )
+
+        self.assertEqual(resp.status_code, 400)
+        detail = resp.json().get("detail", {})
+        self.assertTrue(detail.get("photo_retry_required"))
+        self.assertIn("healthy", detail.get("message", "").lower())
+        self.assertIn("affected or damaged", detail.get("message", "").lower())
+
+    # =========================================================================
+    # TEST 10: Wrong / Mismatched Crop Photos -> Rejected with specific retry message
+    # =========================================================================
+    @patch("app.api.v1.incidents.get_supabase_client")
+    @patch("app.api.v1.incidents.evaluate_multimodal_evidence")
+    @patch("app.api.v1.incidents.process_multiple_vision_for_incident")
+    @patch("app.api.v1.incidents.create_farmer_incident")
+    def test_10_wrong_crop_photo_rejection(
+        self, mock_create_incident, mock_vision, mock_eval_mm, mock_get_supabase
+    ):
+        mock_db = MagicMock()
+        mock_get_supabase.return_value = mock_db
+        mock_db.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
+
+        inc_id = str(uuid.uuid4())
+        mock_create_incident.return_value = {
+            "success": True,
+            "incident_id": inc_id,
+            "farmer_id": "farmer-12345",
+            "reference_id": "REF-7777",
+            "message": "Incident submitted",
+            "photos": ["/uploads/photos/banana_leaf.jpg"]
+        }
+        mock_vision.return_value = {"images": []}
+
+        # Multimodal AI detects wrong crop (e.g. Banana tree when complaint is for Chilli)
+        mock_eval_mm.return_value = {
+            "overall_relevance": "WRONG_CROP",
+            "images": [
+                {
+                    "image_index": 1,
+                    "status": "WRONG_CROP",
+                    "relationship_to_complaint": "The photo shows a banana tree, but the farmer reported chilli leaf curl.",
+                    "visual_evidence": [],
+                    "limitations": ["Wrong crop"]
+                }
+            ],
+            "assessment": {
+                "relationship": "INCONSISTENT",
+                "summary": "Photo shows a completely different crop than reported in complaint.",
+                "requires_aeo_verification": True
+            },
+            "safe_aeo_approach": "Farmer should upload photos of the actual reported crop."
+        }
+
+        # Test English response
+        resp_en = self.client.post(
+            "/api/v1/incidents/upload",
+            data={
+                "farmer_name": "Ramesh",
+                "farmer_phone": "9876543210",
+                "crop": "Chilli",
+                "description": "Leaves are curling",
+                "language": "English"
+            },
+            files=[("photos", ("banana_tree.jpg", b"fake-banana-bytes" * 10, "image/jpeg"))]
+        )
+
+        self.assertEqual(resp_en.status_code, 400)
+        detail_en = resp_en.json().get("detail", {})
+        self.assertTrue(detail_en.get("photo_retry_required"))
+        self.assertIn("different plant or object", detail_en.get("message", "").lower())
+        self.assertIn("chilli", detail_en.get("message", "").lower())
+
+        # Test Telugu localized response
+        resp_te = self.client.post(
+            "/api/v1/incidents/upload",
+            data={
+                "farmer_name": "Ramesh",
+                "farmer_phone": "9876543210",
+                "crop": "Chilli",
+                "description": "ఆకులు ముడుచుకుపోతున్నాయి",
+                "language": "Telugu"
+            },
+            files=[("photos", ("banana_tree.jpg", b"fake-banana-bytes" * 10, "image/jpeg"))]
+        )
+
+        self.assertEqual(resp_te.status_code, 400)
+        detail_te = resp_te.json().get("detail", {})
+        self.assertTrue(detail_te.get("photo_retry_required"))
+        self.assertIn("మిరప", detail_te.get("message", ""))
+        self.assertIn("మరొక ఫోటో", detail_te.get("message", ""))
+
+
+
+class TestMultimodalQwen3VLPipeline(unittest.TestCase):
+    """
+    Tests for Featherless Qwen3-VL multimodal pipeline:
+    - Bounding box sanitation
+    - Dual-layer coordinates (YOLO absolute vs Qwen normalized)
+    - Structured multimodal assessment and cross-validation
+    """
+
+    def test_sanitize_bbox_valid_dict(self):
+        from app.services.llm_service import _sanitize_bbox
+        raw = {"x1": 0.15, "y1": 0.20, "x2": 0.45, "y2": 0.55}
+        cleaned = _sanitize_bbox(raw)
+        self.assertIsNotNone(cleaned)
+        self.assertEqual(cleaned["x1"], 0.15)
+        self.assertEqual(cleaned["y1"], 0.20)
+        self.assertEqual(cleaned["x2"], 0.45)
+        self.assertEqual(cleaned["y2"], 0.55)
+
+    def test_sanitize_bbox_clamp_out_of_bounds(self):
+        from app.services.llm_service import _sanitize_bbox
+        raw = {"x1": -0.1, "y1": -0.05, "x2": 1.2, "y2": 1.05}
+        cleaned = _sanitize_bbox(raw)
+        self.assertIsNotNone(cleaned)
+        self.assertEqual(cleaned["x1"], 0.0)
+        self.assertEqual(cleaned["y1"], 0.0)
+        self.assertEqual(cleaned["x2"], 1.0)
+        self.assertEqual(cleaned["y2"], 1.0)
+
+    def test_sanitize_bbox_rejects_inverted(self):
+        from app.services.llm_service import _sanitize_bbox
+        # x2 < x1
+        self.assertIsNone(_sanitize_bbox({"x1": 0.5, "y1": 0.2, "x2": 0.3, "y2": 0.6}))
+        # y2 < y1
+        self.assertIsNone(_sanitize_bbox({"x1": 0.2, "y1": 0.7, "x2": 0.5, "y2": 0.4}))
+        # zero area (degenerate line)
+        self.assertIsNone(_sanitize_bbox({"x1": 0.3, "y1": 0.3, "x2": 0.3, "y2": 0.5}))
+
+    def test_sanitize_bbox_valid_list(self):
+        from app.services.llm_service import _sanitize_bbox
+        raw = [0.1, 0.2, 0.4, 0.6]
+        cleaned = _sanitize_bbox(raw)
+        self.assertIsNotNone(cleaned)
+        self.assertEqual(cleaned["x1"], 0.1)
+        self.assertEqual(cleaned["y1"], 0.2)
+        self.assertEqual(cleaned["x2"], 0.4)
+        self.assertEqual(cleaned["y2"], 0.6)
+
+    @patch("app.services.llm_service.httpx.AsyncClient")
+    def test_multimodal_evidence_structure_and_dual_layer(self, mock_client_cls):
+        import asyncio
+
+        qwen_stage2_response = {
+            "overall_relevance": "RELEVANT",
+            "images": [
+                {
+                    "image_index": 1,
+                    "status": "RELEVANT",
+                    "visible_crop": "Tomato",
+                    "relationship_to_complaint": "Tomato foliage shows spots matching complaint.",
+                    "visual_evidence": ["Necrotic circular spots with chlorotic halo"],
+                    "spatial_mappings": [
+                        {
+                            "label": "Brown circular spot on lower leaf",
+                            "description": "Necrotic foliar lesion with concentric rings",
+                            "confidence": 0.88,
+                            "bbox_normalized": {"x1": 0.15, "y1": 0.20, "x2": 0.48, "y2": 0.55}
+                        }
+                    ]
+                }
+            ],
+            "assessment": {
+                "relationship": "CONSISTENT",
+                "summary": "Visual evidence is consistent with tomato leaf spots reported.",
+                "requires_aeo_verification": True
+            },
+            "safe_aeo_approach": "Conduct on-site leaf examination before issuing advisory.",
+            "multimodal_assessment": {
+                "voice_image_relationship": "CONSISTENT",
+                "confidence": 0.88,
+                "reasoning": "Reported spots align with observed foliar lesions.",
+                "supporting_evidence": ["Brown foliar spots observed"],
+                "contradictions": [],
+                "missing_evidence": [],
+                "possible_conditions": ["Possible fungal leaf spot or early blight"],
+                "evidence_strength": "STRONG",
+                "why_ai_reached_assessment": "Target lesions visible on tomato leaves.",
+                "recommended_aeo_checks": ["Inspect underside for sporulation"]
+            }
+        }
+
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {"choices": [{"message": {"content": json.dumps(qwen_stage2_response)}}]}
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_resp
+        mock_client_cls.return_value.__aenter__.return_value = mock_client
+
+        async def run_test():
+            complaint = {"crop": "Tomato", "description": "Brown spots on tomato leaves"}
+            photos_data = [{"bytes": b"fake-tomato-bytes", "url": "https://fake.url/img.jpg", "index": 0}]
+            yolo_findings = [
+                {
+                    "status": "detected",
+                    "detections": [
+                        {"bbox": {"x1": 27, "x2": 300, "y1": 26, "y2": 310}, "label": "early_blight", "confidence": 0.817}
+                    ],
+                    "image_width": 553,
+                    "image_height": 414
+                }
+            ]
+
+            with patch("app.core.config.settings.FEATHERLESS_API_KEY", "test-key"):
+                res = await evaluate_multimodal_evidence(complaint, photos_data, yolo_findings)
+
+            # 1. Structure verification
+            self.assertIn("multimodal_assessment", res)
+            self.assertIn("visual_mappings", res)
+            self.assertIn("voice_image_assessment", res)
+            self.assertIn("vision", res)
+
+            # 2. Dual layer check: YOLO detections preserved untouched
+            self.assertEqual(len(res["vision"]["yolo_detections"]), 1)
+            self.assertEqual(res["vision"]["yolo_detections"][0]["detections"][0]["label"], "early_blight")
+            self.assertEqual(res["vision"]["yolo_detections"][0]["detections"][0]["bbox"]["x1"], 27)
+
+            # 3. Qwen visual mappings: normalized coordinates between 0 and 1
+            mappings = res["visual_mappings"]
+            self.assertGreaterEqual(len(mappings), 1)
+            box = mappings[0]["bbox_normalized"]
+            self.assertTrue(0.0 <= box["x1"] < box["x2"] <= 1.0)
+            self.assertTrue(0.0 <= box["y1"] < box["y2"] <= 1.0)
+            self.assertEqual(mappings[0]["source"], "QWEN3_VL")
+            self.assertEqual(mappings[0]["evidence_type"], "QWEN_VISUAL_MAPPING")
+
+            # 4. Cross validation relationship
+            self.assertEqual(res["multimodal_assessment"]["voice_image_relationship"], "CONSISTENT")
+            self.assertIn("recommended_aeo_checks", res["multimodal_assessment"])
+
+            # 5. Tentative non-confirmed language
+            for cond in res["multimodal_assessment"].get("possible_conditions", []):
+                self.assertNotIn("diagnosed with certainty", cond.lower())
+
+        asyncio.run(run_test())
+
 
 if __name__ == "__main__":
     unittest.main()
+

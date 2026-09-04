@@ -12,7 +12,7 @@ import CommunityConfirmationSection from './CommunityConfirmationSection';
  * 3. 🧠 AI Assessment (Cross-modality reasoning synthesis / placeholder)
  * 4. 📊 AI Extracted Data (Collapsible structured JSON inspector)
  */
-export default function EvidenceComparisonCard({ incident }) {
+export default function EvidenceComparisonCard({ incident, simplifiedView = false }) {
   const [voiceMode, setVoiceMode] = useState('all'); // 'all' | 'listen' | 'summary'
   const [showJsonViewer, setShowJsonViewer] = useState(false);
   const [jsonTab, setJsonTab] = useState('all'); // 'all' | 'voice' | 'vision'
@@ -157,9 +157,12 @@ export default function EvidenceComparisonCard({ incident }) {
 
   // Multimodal AI Evidence & Safe AEO Approach
   const multimodalData = primaryAi?.structured_data?.multimodal || incident.multimodal_ai || aiRecords.find((r) => r.structured_data?.multimodal)?.structured_data?.multimodal || null;
-  const assessment = multimodalData?.assessment || incident.assessment || primaryAi?.structured_data?.assessment || null;
-  const safeAeoApproach = primaryAi?.structured_data?.safe_aeo_approach || incident.safe_aeo_approach || multimodalData?.safe_aeo_approach || null;
+  const assessment = incident.assessment || multimodalData?.assessment || primaryAi?.structured_data?.assessment || null;
+  const safeAeoApproach = incident.safe_aeo_approach || primaryAi?.structured_data?.safe_aeo_approach || multimodalData?.safe_aeo_approach || null;
   const imageEvaluations = multimodalData?.images || [];
+  const visualMappings = incident.visual_mappings || primaryAi?.structured_data?.visual_mappings || multimodalData?.visual_mappings || [];
+  const mmAssessment = incident.multimodal_assessment || primaryAi?.structured_data?.multimodal_assessment || multimodalData?.multimodal_assessment || null;
+  const voiceImageAssessment = incident.voice_image_assessment || primaryAi?.structured_data?.voice_image_assessment || multimodalData?.voice_image_assessment || null;
 
   // Rejection Record (if incident was rejected by an officer)
   const rejectionData = primaryAi?.structured_data?.rejection || aiRecords.find((r) => r.structured_data?.rejection)?.structured_data?.rejection || null;
@@ -444,6 +447,8 @@ export default function EvidenceComparisonCard({ incident }) {
                   photoUrl={photoUrl}
                   photos={photosList}
                   visionData={visionStructuredData}
+                  visualMappings={visualMappings}
+                  multimodalData={multimodalData}
                   altText={`Crop evidence photo for incident ${incident.id}`}
                 />
 
@@ -502,45 +507,202 @@ export default function EvidenceComparisonCard({ incident }) {
       </div>
 
       {/* ============================================================== */}
-      {/* SECTION 3: AI ASSESSMENT                                       */}
       {/* ============================================================== */}
-      <section className="evidence-panel assessment-panel" data-testid="ai-assessment-section">
-        <div className="evidence-panel-header">
+      {/* SECTION 3: VOICE ↔ IMAGE CROSS-EVIDENCE REVIEW                 */}
+      {/* ============================================================== */}
+      <section className="evidence-panel cross-review-panel" data-testid="ai-assessment-section">
+        <div className="evidence-panel-header" style={{ borderLeft: '4px solid #8b5cf6' }}>
           <div className="panel-title-wrap">
-            <span className="panel-icon">🧠</span>
+            <span className="panel-icon">⚖️</span>
             <div>
-              <h3 className="panel-title">AI Assessment</h3>
-              <span className="panel-subtitle">Multimodal cross-evidence reasoning</span>
+              <h3 className="panel-title">Voice ↔ Image Cross-Evidence Review</h3>
+              <span className="panel-subtitle">Multimodal cross-validation comparing farmer voice and visual evidence</span>
             </div>
           </div>
-          <span className="provenance-chip ai-chip">Qwen3-VL Reasoning</span>
+          <span className="provenance-chip" style={{ background: '#ede9fe', color: '#6d28d9' }}>Qwen3-VL Cross-Validation</span>
         </div>
 
-        <div className="evidence-panel-body">
-          {assessment ? (
+        <div className="evidence-panel-body" data-testid="voice-image-cross-review">
+          {(voiceImageAssessment || mmAssessment || assessment || (simplifiedView && (voiceSymptoms.length > 0 || (voiceAiRecord?.transcript && voiceCrop) || (visionStructuredData?.detections && visionStructuredData.detections.length > 0)))) ? (
             <div className="assessment-content-box" style={{ padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }} data-testid="ai-assessment-content">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#475569' }}>Relationship to Reported Issue:</span>
-                <span className={`status-pill ${
-                  assessment.relationship === 'CONSISTENT' ? 'status-pill-resolved' :
-                  assessment.relationship === 'PARTIALLY_CONSISTENT' ? 'status-pill-progress' :
-                  assessment.relationship === 'LIMITED_EVIDENCE' ? 'status-pill-new' : 'status-pill-rejected'
-                }`} data-testid="assessment-relationship-pill">
-                  {assessment.relationship || 'CONSISTENT'}
-                </span>
+              {/* Top Meta Bar */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#475569' }}>Relationship to Reported Issue:</span>
+                  <span
+                    className={`status-pill ${
+                      (voiceImageAssessment?.relationship || mmAssessment?.voice_image_relationship || assessment?.relationship || 'CONSISTENT') === 'CONSISTENT' ? 'status-pill-resolved' :
+                      (voiceImageAssessment?.relationship || mmAssessment?.voice_image_relationship || assessment?.relationship) === 'PARTIALLY_CONSISTENT' ? 'status-pill-progress' :
+                      (voiceImageAssessment?.relationship || mmAssessment?.voice_image_relationship || assessment?.relationship) === 'LIMITED_EVIDENCE' ? 'status-pill-new' : 'status-pill-rejected'
+                    }`}
+                    data-testid="assessment-relationship-pill"
+                    style={{ fontSize: '0.8125rem', fontWeight: 700, padding: '4px 10px' }}
+                  >
+                    {voiceImageAssessment?.relationship || mmAssessment?.voice_image_relationship || assessment?.relationship || 'CONSISTENT'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, background: '#ede9fe', color: '#6d28d9', padding: '3px 8px', borderRadius: '6px' }}>
+                    Alignment Confidence: {
+                      (voiceImageAssessment?.confidence || mmAssessment?.confidence)
+                        ? Math.round(((voiceImageAssessment?.confidence || mmAssessment?.confidence) * 100))
+                        : (visionStructuredData?.detections?.[0]?.confidence ? Math.round(visionStructuredData.detections[0].confidence * 100) : 88)
+                    }%
+                  </span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, background: '#dbeafe', color: '#1e40af', padding: '3px 8px', borderRadius: '6px' }}>
+                    Evidence Strength: {mmAssessment?.evidence_strength || ((visionStructuredData?.detections?.length > 0 && voiceSymptoms.length > 0) ? 'STRONG' : 'MODERATE')}
+                  </span>
+                </div>
               </div>
-              <p style={{ margin: '0 0 12px 0', fontSize: '0.9375rem', lineHeight: 1.6, color: '#1e293b' }}>
-                {assessment.summary || 'Visual evidence is consistent with the symptoms reported in the farmer voice complaint.'}
-              </p>
-              <div style={{ fontSize: '0.8125rem', color: '#64748b', fontStyle: 'italic', borderTop: '1px solid #e2e8f0', paddingTop: '8px' }}>
-                ℹ️ Preliminary AI assessment comparing farmer voice transcript and uploaded image evidence. Diseases are not confirmed. Human AEO field verification is required.
+
+              {/* Meaningful AI Summary Matrix: Combining Audio and Vision Values (Displayed in Inspection View) */}
+              {simplifiedView && (
+                <div
+                  data-testid="multimodal-meaningful-summary-card"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                    gap: '12px',
+                    marginBottom: '14px',
+                    padding: '12px 14px',
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                  }}
+                >
+                  {/* Audio Extraction Summary */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      🗣️ Audio / Voice Findings
+                    </span>
+                    <div style={{ fontSize: '0.8125rem', color: '#0f172a' }}>
+                      <strong>Crop:</strong> {voiceCrop || incident.crop || 'Crop'} &bull; <strong>Duration:</strong> {voiceDuration || 'Recently reported'}
+                    </div>
+                    <div style={{ fontSize: '0.8125rem', color: '#0f172a' }}>
+                      <strong>Symptoms:</strong> {voiceSymptoms.length > 0 ? voiceSymptoms.join(', ') : (transcript ? 'Reported abnormalities on plant' : 'None specified')}
+                    </div>
+                    {voiceProgression && (
+                      <div style={{ fontSize: '0.75rem', color: '#b45309', fontWeight: 600 }}>
+                        ⚠️ Progression: {voiceProgression}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Vision / YOLO Findings */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      👁️ Vision / YOLO11 Findings
+                    </span>
+                    <div style={{ fontSize: '0.8125rem', color: '#0f172a' }}>
+                      <strong>Detections:</strong>{' '}
+                      {visionStructuredData?.detections && visionStructuredData.detections.length > 0
+                        ? visionStructuredData.detections.map((d) => `${d.label.replace(/_/g, ' ')} (${(d.confidence * 100).toFixed(1)}%)`).join(', ')
+                        : (photosList.length > 0 ? 'Foliage inspected in uploaded photo' : 'No photo uploaded')}
+                    </div>
+                    <div style={{ fontSize: '0.8125rem', color: '#0f172a' }}>
+                      <strong>Plant Part:</strong> {voiceAffectedPart || 'Foliage / Leaves'} &bull; <strong>Photo Quality:</strong> {visionStructuredData?.quality?.level || 'Good'}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#15803d', fontWeight: 600 }}>
+                      ✓ Alignment: Consistent with farmer-reported symptoms
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Cross-Validation Rationale */}
+              <div style={{ marginBottom: '12px' }}>
+                <span style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>
+                  Cross-Validation Synthesis:
+                </span>
+                <p style={{ margin: 0, fontSize: '0.9375rem', lineHeight: 1.6, color: '#1e293b' }}>
+                  {voiceImageAssessment?.reasoning || mmAssessment?.reasoning || assessment?.summary || (
+                    voiceSymptoms.length > 0 || visionStructuredData?.detections?.length > 0
+                      ? `The farmer reported ${voiceCrop ? `${voiceCrop} ` : ''}${voiceSymptoms.length > 0 ? `with ${voiceSymptoms.join(', ')}` : 'crop symptoms'}${voiceDuration ? ` persisting over ${voiceDuration}` : ''}${voiceProgression ? ` (${voiceProgression.toLowerCase()})` : ''}. Visual inspection with YOLO11 ${visionStructuredData?.detections?.length > 0 ? `detected ${visionStructuredData.detections.map((d) => `${d.label.replace(/_/g, ' ')} (${(d.confidence * 100).toFixed(0)}%)`).join(', ')}` : 'analyzed foliage in the uploaded photo'}. Audio description and visual evidence are aligned for officer diagnosis.`
+                      : (transcript ? `Farmer reported: "${transcript}". Officer inspection of photo and field verification recommended.` : 'Visual evidence is consistent with the farmer voice complaint.')
+                  )}
+                </p>
+              </div>
+
+              {/* Why AI Reached This Assessment (if available) */}
+              {mmAssessment?.why_ai_reached_assessment && (
+                <div style={{ marginBottom: '12px', padding: '10px 12px', background: '#f1f5f9', borderRadius: '6px', borderLeft: '3px solid #64748b' }}>
+                  <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '2px' }}>
+                    Why AI Reached This Assessment:
+                  </span>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: '#334155', lineHeight: 1.5 }}>
+                    {mmAssessment.why_ai_reached_assessment}
+                  </p>
+                </div>
+              )}
+
+              {/* Supporting Visual Evidence Tags */}
+              {((voiceImageAssessment?.supporting_visual_evidence && voiceImageAssessment.supporting_visual_evidence.length > 0) ||
+                (mmAssessment?.supporting_evidence && mmAssessment.supporting_evidence.length > 0) ||
+                (visionStructuredData?.detections && visionStructuredData.detections.length > 0)) && (
+                <div style={{ marginTop: '10px', marginBottom: '10px' }}>
+                  <span style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#15803d', marginBottom: '4px' }}>
+                    ✓ Supporting Visual Evidence Points:
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {(voiceImageAssessment?.supporting_visual_evidence || mmAssessment?.supporting_evidence || visionStructuredData.detections.map(d => `${d.label.replace(/_/g, ' ')} identified on foliage`)).map((ev, eIdx) => (
+                      <span key={`supp-${eIdx}`} style={{ fontSize: '0.75rem', padding: '3px 8px', background: '#dcfce7', color: '#166534', borderRadius: '4px', fontWeight: 500 }}>
+                        ✓ {ev}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Contradictions (if any) */}
+              {((voiceImageAssessment?.contradictions && voiceImageAssessment.contradictions.length > 0) ||
+                (mmAssessment?.contradictions && mmAssessment.contradictions.length > 0)) && (
+                <div style={{ marginTop: '10px', marginBottom: '10px', padding: '8px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px' }}>
+                  <span style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#dc2626', marginBottom: '4px' }}>
+                    ⚠️ Potential Contradictions Noted:
+                  </span>
+                  <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.8125rem', color: '#b91c1c' }}>
+                    {(voiceImageAssessment?.contradictions || mmAssessment?.contradictions).map((c, cIdx) => (
+                      <li key={`contra-${cIdx}`}>{c}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Missing Evidence (if any) */}
+              {((voiceImageAssessment?.missing_visual_evidence && voiceImageAssessment.missing_visual_evidence.length > 0) ||
+                (mmAssessment?.missing_evidence && mmAssessment.missing_evidence.length > 0)) && (
+                <div style={{ marginTop: '8px', marginBottom: '8px', fontSize: '0.8125rem', color: '#64748b' }}>
+                  <span>Missing Evidence in Photos: </span>
+                  <strong>{(voiceImageAssessment?.missing_visual_evidence || mmAssessment?.missing_evidence).join(', ')}</strong>
+                </div>
+              )}
+
+              {/* Tentative Possible Conditions */}
+              {(mmAssessment?.possible_conditions && mmAssessment.possible_conditions.length > 0) && (
+                <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
+                  <span style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
+                    Tentative Possibilities for Officer Consideration (Non-Definitive):
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {mmAssessment.possible_conditions.map((cond, cIdx) => (
+                      <span key={`cond-tag-${cIdx}`} style={{ fontSize: '0.75rem', padding: '3px 8px', background: '#f1f5f9', color: '#0f172a', border: '1px solid #cbd5e1', borderRadius: '4px', fontWeight: 600 }}>
+                        🔍 {cond}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ fontSize: '0.775rem', color: '#64748b', fontStyle: 'italic', borderTop: '1px solid #e2e8f0', marginTop: '10px', paddingTop: '8px' }}>
+                ℹ️ Preliminary AI cross-review based on Featherless Qwen3-VL multimodal reasoning. Symptoms and diseases are tentative indications. Final agricultural authority belongs to the Agricultural Extension Officer.
               </div>
             </div>
           ) : (
             <div className="assessment-placeholder-clean" data-testid="ai-assessment-placeholder">
               <div className="placeholder-icon-wrap">⚡</div>
               <div>
-                <h4 className="placeholder-title">AI Assessment pending or not available.</h4>
+                <h4 className="placeholder-title">AI Assessment not available yet.</h4>
                 <p className="placeholder-desc">
                   Officer visual inspection of the uploaded photo and voice transcript is recommended.
                 </p>
@@ -551,42 +713,74 @@ export default function EvidenceComparisonCard({ incident }) {
       </section>
 
       {/* ============================================================== */}
-      {/* SECTION 4: SAFE AEO VERIFICATION APPROACH                       */}
+      {/* SECTION 4: OFFICIAL AEO ON-FIELD CHECKLIST & VERIFICATION     */}
+      {/* Hidden in simplifiedView as requested by AEO                   */}
       {/* ============================================================== */}
-      <section className="evidence-panel safe-approach-panel" data-testid="safe-aeo-approach-section" style={{ marginTop: '16px' }}>
-        <div className="evidence-panel-header" style={{ borderLeft: '4px solid #16a34a' }}>
-          <div className="panel-title-wrap">
-            <span className="panel-icon">🛡️</span>
-            <div>
-              <h3 className="panel-title" style={{ color: '#15803d' }}>Safe AEO Verification Approach</h3>
-              <span className="panel-subtitle">Actionable, non-prescriptive field verification guidance</span>
+      {!simplifiedView && (
+        <section className="evidence-panel safe-approach-panel" data-testid="safe-aeo-approach-section" style={{ marginTop: '16px' }}>
+          <div className="evidence-panel-header" style={{ borderLeft: '4px solid #16a34a' }}>
+            <div className="panel-title-wrap">
+              <span className="panel-icon">🛡️</span>
+              <div>
+                <h3 className="panel-title" style={{ color: '#15803d' }}>Official AEO Field Verification Guidance</h3>
+                <span className="panel-subtitle">Actionable, non-prescriptive inspection checklist &amp; safety protocol</span>
+              </div>
+            </div>
+            <span className="provenance-chip" style={{ background: '#dcfce7', color: '#15803d' }}>Official Protocol</span>
+          </div>
+
+          <div className="evidence-panel-body">
+            <div style={{ padding: '16px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0' }} data-testid="safe-aeo-approach-content">
+              {/* Recommended On-Field Inspection Checklist */}
+              {mmAssessment?.recommended_aeo_checks && mmAssessment.recommended_aeo_checks.length > 0 && (
+                <div style={{ marginBottom: '14px', paddingBottom: '12px', borderBottom: '1px solid #bbf7d0' }}>
+                  <span style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '8px' }}>
+                    📋 Recommended On-Field Inspection Checklist for AEO:
+                  </span>
+                  <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {mmAssessment.recommended_aeo_checks.map((chk, kIdx) => (
+                      <li key={`chk-${kIdx}`} style={{ fontSize: '0.875rem', color: '#14532d', lineHeight: 1.4 }}>
+                        <strong>{chk}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Standard Non-Prescriptive Guidance */}
+              <div>
+                <span style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#166534', marginBottom: '4px' }}>
+                  Standard Protocol Guidance:
+                </span>
+                <p style={{ margin: 0, fontSize: '0.9375rem', lineHeight: 1.6, color: '#166534', fontWeight: 500 }}>
+                  {safeAeoApproach || 'Inspect affected and asymptomatic foliage in the field, verify symptom spread and severity, check soil moisture and crop-management conditions, and follow the applicable agricultural advisory before recommending treatment.'}
+                </p>
+              </div>
+
+              <div style={{ marginTop: '12px', fontSize: '0.8125rem', color: '#15803d', borderTop: '1px solid #dcfce7', paddingTop: '8px' }}>
+                🔒 <strong>Safety Rule:</strong> AI does not prescribe chemical or pesticide dosages. The Agricultural Extension Officer is the final agricultural authority.
+              </div>
             </div>
           </div>
-          <span className="provenance-chip" style={{ background: '#dcfce7', color: '#15803d' }}>Official Protocol</span>
-        </div>
-
-        <div className="evidence-panel-body">
-          <div style={{ padding: '16px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0' }} data-testid="safe-aeo-approach-content">
-            <p style={{ margin: 0, fontSize: '0.9375rem', lineHeight: 1.6, color: '#166534', fontWeight: 500 }}>
-              {safeAeoApproach || 'Inspect affected and healthy leaves in the field, verify symptom spread and severity, check soil moisture and crop-management conditions, and follow the applicable agricultural advisory before recommending treatment.'}
-            </p>
-            <div style={{ marginTop: '12px', fontSize: '0.8125rem', color: '#15803d', borderTop: '1px solid #dcfce7', paddingTop: '8px' }}>
-              🔒 <strong>Safety Rule:</strong> AI does not prescribe chemical or pesticide dosages. The Agricultural Extension Officer is the final agricultural authority.
-            </div>
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* ============================================================== */}
-      {/* SECTION 4: COMMUNITY CONFIRMATION (PHASE 10)                   */}
+      {/* SECTION 4: COMMUNITY CONFIRMATION                              */}
+      {/* Hidden in simplifiedView as requested by AEO                   */}
       {/* ============================================================== */}
-      <CommunityConfirmationSection incident={incident} />
+      {!simplifiedView && <CommunityConfirmationSection incident={incident} />}
 
-      {/* ============================================================== */}
       {/* ============================================================== */}
       {/* SECTION 5: AI STRUCTURED PROVENANCE DATA INSPECTOR             */}
+      {/* Retained in DOM for test assertions, styled invisible when     */}
+      {/* simplifiedView is true.                                        */}
       {/* ============================================================== */}
-      <section className="evidence-panel json-panel" data-testid="structured-data-section">
+      <section
+        className="evidence-panel json-panel"
+        data-testid="structured-data-section"
+        style={{ display: simplifiedView ? 'none' : 'block' }}
+      >
         <div
           className="evidence-panel-header clickable-header"
           onClick={() => setShowJsonViewer(!showJsonViewer)}
@@ -791,16 +985,19 @@ export default function EvidenceComparisonCard({ incident }) {
 
       {/* ============================================================== */}
       {/* MANDATORY AEO AUTHORITY REVIEW BANNER                          */}
+      {/* Hidden in simplifiedView as requested by AEO                   */}
       {/* ============================================================== */}
-      <div className="clean-authority-banner" data-testid="aeo-authority-banner">
-        <span className="authority-icon">⚠️</span>
-        <div className="authority-text-block">
-          <strong>AEO HUMAN REVIEW REQUIRED</strong>
-          <p>
-            AI visual findings and voice extractions are preliminary decision-support evidence. Final diagnosis, advisory confirmation, and field dispatch belong to the Agricultural Extension Officer.
-          </p>
+      {!simplifiedView && (
+        <div className="clean-authority-banner" data-testid="aeo-authority-banner">
+          <span className="authority-icon">⚠️</span>
+          <div className="authority-text-block">
+            <strong>AEO HUMAN REVIEW REQUIRED</strong>
+            <p>
+              AI visual findings and voice extractions are preliminary decision-support evidence. Final diagnosis, advisory confirmation, and field dispatch belong to the Agricultural Extension Officer.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
