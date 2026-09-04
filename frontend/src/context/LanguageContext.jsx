@@ -1,0 +1,731 @@
+import React, { createContext, useContext, useState, useEffect } from 'react';
+
+export const LANGUAGES = [
+  { code: 'te', name: 'Telugu', label: 'తెలుగు' },
+  { code: 'en', name: 'English', label: 'English' },
+  { code: 'hi', name: 'Hindi', label: 'हिन्दी' },
+  { code: 'ta', name: 'Tamil', label: 'தமிழ்' },
+];
+
+export const translations = {
+  en: {
+    // Brand & Nav
+    appName: 'KisaanSathi',
+    tagline: 'Smart Crop Companion',
+    navHome: 'Home',
+    navServices: 'Services',
+    navAbout: 'About',
+    navContact: 'Contact',
+    navReport: 'Report Problem',
+    navOfficerLogin: 'Officer Login',
+    apiConnected: 'API Connected',
+    apiConnecting: 'Connecting...',
+    apiOffline: 'API Offline',
+
+    // Landing Page Hero
+    heroBadge: 'Standing with farmers, at every step',
+    heroBrand: 'KisaanSathi',
+    heroTitle: 'Smart Companion for Your Crop',
+    heroDescription: 'Powered by multimodal AI to understand crop symptoms via voice, video & photos, delivering rapid, verified remedies from agricultural officers.',
+    heroCta: 'Got a Problem? Report Now →',
+    heroAudioHint: 'Easy registration via Voice, Video & Photo',
+    
+    // How It Works / User Flow
+    howItWorksTitle: 'Our Workflow',
+    howItWorksSubtitle: 'How KisaanSathi turns crop questions into verified solutions in 4 simple steps',
+    step1Num: '1',
+    step1Title: 'Report Problem',
+    step1Text: 'Describe your issue easily using voice recording, video scan, photos, or text in your native language.',
+    step2Num: '2',
+    step2Title: 'AI Analysis',
+    step2Text: 'Our agricultural AI analyzes plant symptoms, pest signs, and visual damage instantly.',
+    step3Num: '3',
+    step3Title: 'Expert & Officer Advice',
+    step3Text: 'Agricultural Extension Officers (AEO) verify diagnosis and prescribe precise, safe remedies.',
+    step4Num: '4',
+    step4Title: 'Better & Healthier Crop',
+    step4Text: 'Apply the exact recommended treatment to protect yield and maximize harvest profit.',
+
+    // AI Feature Deep Dive
+    aiFeatureBadge: 'Multimodal AI Intelligence',
+    aiFeatureTitle: 'A New Era for Agriculture Powered by AI',
+    aiFeatureDesc: 'Never struggle to identify complex pests or leaf diseases. With KisaanSathi, you can simply speak in your local language or record a short video of the affected crop.',
+    aiFeature1: 'Accurate analysis powered by advanced multimodal AI vision & speech models',
+    aiFeature2: 'Full support for Voice, Video scans, High-res Photos, and Text in regional dialects',
+    aiFeature3: 'Instant preliminary guidance backed by official Agricultural Officer validation',
+    aiFeature4: 'Specially trained and optimized for Indian farming conditions and crops',
+
+    // Comparison Section
+    comparisonTitle: 'Why We Are Better Compared to Traditional Methods',
+    comparisonSubtitle: 'Experience the modern agricultural advantage over slow, costly conventional practices',
+    traditionalTitle: 'Traditional Method',
+    traditionalItem1: 'Takes days to visit or meet agricultural officers',
+    traditionalItem2: 'Accurate diagnostic data and remedies are hard to find',
+    traditionalItem3: 'High travel and consultation expenses',
+    traditionalItem4: 'Delayed advisory often leads to severe crop damage',
+    kisaanTitle: 'KisaanSathi',
+    kisaanItem1: 'Instant 24/7 assistance anytime, anywhere from your farm',
+    kisaanItem2: 'Cutting-edge AI + verified Agriculture Extension Officer advice',
+    kisaanItem3: 'Zero cost & ultra easy to use in your native mother tongue',
+    kisaanItem4: 'Rapid, scientifically proven solutions in minutes',
+
+    // Stats Bar
+    stat1Value: '10K+',
+    stat1Label: 'Farmers Trust Us',
+    stat2Value: '25K+',
+    stat2Label: 'Problems Resolved',
+    stat3Value: '50+',
+    stat3Label: 'Crops Covered',
+    stat4Value: '99%',
+    stat4Label: 'Satisfaction Rating',
+
+    // Bottom CTA Banner
+    ctaBannerTitle: 'No more waiting for crop solutions!',
+    ctaBannerSubtitle: 'Take a step forward with KisaanSathi and secure your harvest today.',
+    ctaBannerBtn: 'Report Issue Now →',
+
+    // Farmer Page / Form
+    formTitle: 'Got a doubt about your crop?',
+    formSubtitle: "Tell us what's happening by voice or text. No login or password required.",
+    labelName: 'Your Name',
+    placeholderName: 'e.g. Ramesh Reddy',
+    labelPhone: 'Mobile Number',
+    placeholderPhone: 'e.g. 9876543210 or +91 9876543210',
+    phoneHint: 'Used only for officer contact and reference lookup. No OTP needed.',
+    labelCrop: 'Crop Name (Optional)',
+    placeholderCustomCrop: 'Specify crop name',
+    labelDescription: 'Describe the problem (or use voice below)',
+    placeholderDescription: 'Describe what you see: leaves turning yellow, holes in leaves, stem borer, rotting, etc.',
+    labelVoice: 'Speak Your Problem (Voice Recording)',
+    btnStartRecording: 'Record Voice Problem',
+    btnStopRecording: 'Done Recording',
+    btnRecordAgain: 'Record Again',
+    btnClearVoice: 'Remove Voice',
+    voiceAttached: 'Voice Note Recorded',
+    voiceRecordingActive: 'Recording... Speak now',
+    voiceHint: 'Speak in your own language (Telugu, English, Tamil, Hindi). AI will transcribe and analyze it.',
+    micPermissionDenied: 'Microphone permission was denied. Please allow microphone access in your browser settings.',
+    micError: 'Could not access microphone.',
+    voiceUnsupported: 'Voice recording is not supported in this browser.',
+    labelPhoto: 'Add a Photo or Video Evidence (Optional)',
+    btnTakePhoto: 'Take Photo / Video Scan',
+    btnRemovePhoto: 'Remove Photo',
+    photoHint: 'Clear photos of affected leaves or pests help officers diagnose quickly.',
+    labelLocation: 'Field Location',
+    gpsDetecting: 'Detecting GPS location...',
+    gpsDetected: 'GPS Location Detected',
+    gpsDenied: 'GPS not enabled',
+    gpsDeniedHint: 'Your report will still be submitted successfully without GPS.',
+    btnRetryGps: 'Retry GPS',
+    btnSubmit: 'Submit Problem',
+    btnSubmitting: 'Submitting Problem & Processing AI Analysis...',
+    errorTitle: 'Submission Error',
+    valNameRequired: 'Please enter your name.',
+    valPhoneRequired: 'Please enter your 10-digit mobile number.',
+    valDescRequired: 'Please describe the problem or record a voice note.',
+    valPhotoSize: 'Photo file size must be less than 10MB.',
+
+    // Confirmation Screen
+    successTitle: 'Problem Reported Successfully',
+    successSubtitle: 'Your agricultural issue has been recorded',
+    refIdLabel: 'Reference ID',
+    confirmMessage: 'Your agricultural problem has been recorded in our system.',
+    confirmNextStep: 'Our system will process the report and route it to the appropriate agricultural officer.',
+    summaryTitle: 'Submission Summary',
+    summaryFarmerName: 'Farmer Name',
+    summaryMobile: 'Mobile Number',
+    summaryCrop: 'Crop',
+    summaryGps: 'GPS Location',
+    summaryPhoto: 'Photo Attachment',
+    summaryVoice: 'Voice Note',
+    aiInsightsTitle: 'AI Multimodal & Agricultural Speech Diagnosis',
+    aiTranscriptLabel: 'Speech Transcript',
+    aiSummaryLabel: 'Agricultural Summary',
+    aiSymptomsLabel: 'Identified Symptoms',
+    aiConditionsLabel: 'Preliminary Possibilities',
+    aiAeoReviewLabel: 'Human AEO Review Assigned',
+    valAttached: 'Attached',
+    valNone: 'None',
+    valNotProvided: 'Not Provided',
+    btnReportAnother: 'Report Another Problem',
+    btnBackHome: 'Back to Home',
+
+    // Officer Page
+    officerTitle: 'Agricultural Officer Portal',
+    officerSubtitle: 'Extension Officers (AEO) & Agriculture Department Portal',
+    officerNoticeTitle: 'Officer Authentication',
+    officerNoticeText: 'Officer login, field assignment, and incident management dashboard.',
+    officerNoticeSubtext: 'Farmers can continue to submit crop incidents directly without logging in.',
+    btnReturnFarmer: '← Return to Farmer Incident Reporting',
+
+    // Footer
+    footerTitle: 'AI Smart Agriculture Incident & Advisory Platform',
+    footerSubtext: 'Empowering farmers with instant AI diagnosis & direct connection to Agricultural Extension Officers.',
+
+    // Crops List
+    crops: [
+      { value: 'Paddy', label: 'Paddy (Rice)' },
+      { value: 'Chilli', label: 'Chilli' },
+      { value: 'Cotton', label: 'Cotton' },
+      { value: 'Maize', label: 'Maize (Corn)' },
+      { value: 'Red Gram', label: 'Red Gram (Pigeon Pea)' },
+      { value: 'Tomato', label: 'Tomato' },
+      { value: 'Groundnut', label: 'Groundnut' },
+      { value: 'Sugarcane', label: 'Sugarcane' },
+      { value: 'Other', label: 'Other Crop' },
+    ],
+  },
+
+  te: {
+    // Brand & Nav
+    appName: 'కిసాన్‌సాథి',
+    tagline: 'రైతు సేవలు',
+    navHome: 'హోమ్',
+    navServices: 'సేవలు',
+    navAbout: 'గురించి',
+    navContact: 'సంప్రదించండి',
+    navReport: 'సమస్య నమోదు',
+    navOfficerLogin: 'అధికారుల లాగిన్',
+    apiConnected: 'సర్వర్ అనుసంధానించబడింది',
+    apiConnecting: 'అనుసంధానిస్తోంది...',
+    apiOffline: 'సర్వర్ ఆఫ్‌లైన్',
+
+    // Landing Page Hero
+    heroBadge: 'రైతుకి తోడుగా, ప్రతి అడుగులో',
+    heroBrand: 'KisaanSathi',
+    heroTitle: 'మీ పంటకు తెలివైన తోడు',
+    heroDescription: 'AI ఆధారిత సాంకేతికతతో మీ సమస్యను అర్థం చేసుకుని, వేగంగా పరిష్కారాలను అందించే మీ నమ్మకమైన వ్యవసాయ సహకారి.',
+    heroCta: 'సమస్య ఉందా? నివేదించండి →',
+    heroAudioHint: 'ఆడియో ద్వారా సులభంగా నమోదు చేయండి',
+
+    // How It Works / User Flow
+    howItWorksTitle: 'మా పని విధానం',
+    howItWorksSubtitle: 'KisaanSathi తో 4 సులభమైన దశల్లో మీ పంట సమస్యకు పరిష్కారం పొందండి',
+    step1Num: '1',
+    step1Title: 'సమస్య నమోదు',
+    step1Text: 'ఆడియో / వీడియో / ఫోటో / టెక్స్ట్ ద్వారా మీ పంట సమస్యను సులభంగా నమోదు చేయండి.',
+    step2Num: '2',
+    step2Title: 'AI విశ్లేషణ',
+    step2Text: 'మా AI మీ సమస్యను అర్థం చేసుకుని, తెగుళ్ల లక్షణాలను క్షణాల్లో విశ్లేషిస్తుంది.',
+    step3Num: '3',
+    step3Title: 'నిపుణుల సలహా',
+    step3Text: 'వ్యవసాయ నిపుణులు & AEO అధికారుల నుండి శాస్త్రీయమైన, సరైన పరిష్కారాలు అందుతాయి.',
+    step4Num: '4',
+    step4Title: 'మెరుగైన పంట',
+    step4Text: 'సరైన సలహాలు, సమర్థవంతమైన చర్యలతో ఆరోగ్యకరమైన, అధిక దిగుబడిని పొందండి.',
+
+    // AI Feature Deep Dive
+    aiFeatureBadge: 'AI సాంకేతికత',
+    aiFeatureTitle: 'AI శక్తీతో వ్యవసాయానికి కొత్త దారి',
+    aiFeatureDesc: 'పంట తెగులు లేదా సమస్య ఏదైనా, రాయాల్సిన పనిలేదు. మీ ప్రాంతీయ భాషలో మాట్లాడండి లేదా వీడియో / ఫోటో తీసి వెంటనే పరిష్కారం కనుగొనండి.',
+    aiFeature1: 'అత్యాధునిక AI మోడల్స్‌తో అత్యంత ఖచ్చితమైన విశ్లేషణ',
+    aiFeature2: 'ఫోటోలు, ఆడియో, వీడియో, టెక్స్ట్ అన్నింటికీ పూర్తి సపోర్ట్',
+    aiFeature3: 'వేగవంతమైన మరియు అధికారికంగా నమ్మదగిన సలహాలు',
+    aiFeature4: 'ప్రత్యేకంగా భారతీయ వ్యవసాయం, నేల పరిస్థితులకు రూపొందించినది',
+
+    // Comparison Section
+    comparisonTitle: 'సంప్రదాయ విధానాలతో పోలిస్తే మనం ఎందుకు మెరుగ్గా?',
+    comparisonSubtitle: 'పాత పద్ధతులతో ఆలస్యం, ఖర్చు కాకుండా KisaanSathi తో వేగవంతమైన ప్రయోజనాలు',
+    traditionalTitle: 'సంప్రదాయ విధానం',
+    traditionalItem1: 'నిపుణులను కలిసేందుకు చాలా రోజుల సమయం పడుతుంది',
+    traditionalItem2: 'ఖచ్చితమైన మరియు విశ్వసనీయ సమాచారం లభ్యం కాదు',
+    traditionalItem3: 'ప్రయాణ ఖర్చులు, సమయం వృధా ఎక్కువ',
+    traditionalItem4: 'సలహాలు ఆలస్యంగా లభించి పంట నష్టం పెరుగుతుంది',
+    kisaanTitle: 'KisaanSathi',
+    kisaanItem1: 'ఎప్పుడైనా, ఎక్కడి నుంచైనా 24/7 తక్షణ సహాయం',
+    kisaanItem2: 'AI & వ్యవసాయ విస్తరణ అధికారుల (AEO) అత్యుత్తమ సలహాలు',
+    kisaanItem3: 'వాయిస్ లేదా యాప్‌లో మీ సొంత భాషలో సులభంగా ఉపయోగించండి',
+    kisaanItem4: 'వేగవంతమైన, శాస్త్రీయ పరిష్కారాలతో తక్షణ రక్షణ',
+
+    // Stats Bar
+    stat1Value: '10K+',
+    stat1Label: 'రైతుల నమ్మకం',
+    stat2Value: '25K+',
+    stat2Label: 'సమస్యలు పరిష్కరించబడినవి',
+    stat3Value: '50+',
+    stat3Label: 'పంటలు కవర్ చేయబడినవి',
+    stat4Value: '99%',
+    stat4Label: 'సంతృప్తి రేటింగ్',
+
+    // Bottom CTA Banner
+    ctaBannerTitle: 'మీ పంట సమస్యకు ఇక వెయిట్ చేయాల్సిన అవసరం లేదు!',
+    ctaBannerSubtitle: 'KisaanSathi తో కలిసి ముందడుగు వేయండి, మీ పంటను కాపాడుకోండి.',
+    ctaBannerBtn: 'ఇప్పుడే నమోదు చేయండి →',
+
+    // Farmer Page / Form
+    formTitle: 'మీ పంట సమస్య ఏమిటి?',
+    formSubtitle: 'లాగిన్ లేదా పాస్‌వర్డ్ అవసరం లేదు. మాట్లాడి లేదా వివరాలు రాసి నమోదు చేయండి.',
+    labelName: 'మీ పేరు',
+    placeholderName: 'ఉదా. రమేష్ రెడ్డి',
+    labelPhone: 'మొబైల్ నంబర్',
+    placeholderPhone: 'ఉదా. 9876543210 లేదా +91 9876543210',
+    phoneHint: 'అధికారులు మిమ్మల్ని సంప్రదించడానికి మాత్రమే. OTP అవసరం లేదు.',
+    labelCrop: 'పంట పేరు (ఐచ్ఛికం)',
+    placeholderCustomCrop: 'పంట పేరును రాయండి',
+    labelDescription: 'సమస్య వివరాలు (లేదా కింద మాట్లాడండి)',
+    placeholderDescription: 'మీరు చూస్తున్న లక్షణాలు: ఆకులు పసుపు రంగులోకి మారడం, ఆకులకు రంధ్రాలు, పురుగులు, కుళ్ళు తెగులు మొదలైనవి.',
+    labelVoice: 'వాయిస్ ద్వారా చెప్పండి (వాయిస్ రికార్డింగ్)',
+    btnStartRecording: 'సమస్యను మాట్లాడి చెప్పండి',
+    btnStopRecording: 'రికార్డింగ్ పూర్తయింది',
+    btnRecordAgain: 'మళ్లీ మాట్లాడండి',
+    btnClearVoice: 'వాయిస్ తొలగించండి',
+    voiceAttached: 'వాయిస్ రికార్డ్ చేయబడింది',
+    voiceRecordingActive: 'రికార్డ్ అవుతోంది... స్పష్టంగా మాట్లాడండి',
+    voiceHint: 'తెలుగులో స్పష్టంగా మాట్లాడండి. AI మీ మాటలను విశ్లేషిస్తుంది.',
+    micPermissionDenied: 'మైక్రోఫోన్ అనుమతి నిరాకరించబడింది. బ్రౌజర్ సెట్టింగ్స్‌లో మైక్రోఫోన్‌ను అనుమతించండి.',
+    micError: 'మైక్రోఫోన్ పని చేయలేదు.',
+    voiceUnsupported: 'ఈ బ్రౌజర్‌లో వాయిస్ రికార్డింగ్ సదుపాయం లేదు.',
+    labelPhoto: 'ఫోటో లేదా వీడియో జోడించండి (ఐచ్ఛికం)',
+    btnTakePhoto: 'ఫోటో తీయండి లేదా గ్యాలరీ నుండి ఎంచుకోండి',
+    btnRemovePhoto: 'ఫోటో తొలగించండి',
+    photoHint: 'బాధిత ఆకులు లేదా పురుగుల స్పష్టమైన ఫోటో అధికారుల నిర్ధారణకు సహాయపడుతుంది.',
+    labelLocation: 'పొలం ప్రదేశం (GPS)',
+    gpsDetecting: 'జీపీఎస్ స్థానాన్ని గుర్తిస్తోంది...',
+    gpsDetected: 'జీపీఎస్ లొకేషన్ గుర్తించబడింది',
+    gpsDenied: 'జీపీఎస్ ఆన్ చేయలేదు',
+    gpsDeniedHint: 'జీపీఎస్ లేకపోయినా మీ సమస్య విజయవంతంగా నమోదవుతుంది.',
+    btnRetryGps: 'మళ్లీ ప్రయత్నించండి',
+    btnSubmit: 'సమస్యను సమర్పించండి',
+    btnSubmitting: 'సమర్పిస్తోంది & వాయిస్ విశ్లేషిస్తోంది...',
+    errorTitle: 'లోపం సంభవించింది',
+    valNameRequired: 'దయచేసి మీ పేరు నమోదు చేయండి.',
+    valPhoneRequired: 'దయచేసి మీ 10 అంకెల మొబైల్ నంబర్ నమోదు చేయండి.',
+    valDescRequired: 'దయచేసి సమస్య వివరాలు రాయండి లేదా వాయిస్ రికార్డ్ చేయండి.',
+    valPhotoSize: 'ఫోటో సైజు 10MB కన్నా తక్కువ ఉండాలి.',
+
+    // Confirmation Screen
+    successTitle: 'సమస్య విజయవంతంగా నమోదైంది',
+    successSubtitle: 'మీ వ్యవసాయ సమస్య మా వ్యవస్థలో రికార్డ్ చేయబడింది',
+    refIdLabel: 'గుర్తింపు సంఖ్య (Reference ID)',
+    confirmMessage: 'మీ పంట సమస్య వివరాలు నమోదు చేయబడ్డాయి.',
+    confirmNextStep: 'మా సిస్టమ్ ఈ నివేదికను సంబంధిత వ్యవసాయ అధికారికి పంపుతుంది.',
+    summaryTitle: 'సమర్పించిన వివరాలు',
+    summaryFarmerName: 'రైతు పేరు',
+    summaryMobile: 'మొబైల్ నంబర్',
+    summaryCrop: 'పంట',
+    summaryGps: 'జీపీఎస్ లొకేషన్',
+    summaryPhoto: 'ఫోటో',
+    summaryVoice: 'వాయిస్ రికార్డింగ్',
+    aiInsightsTitle: 'AI మాటల & పంట సమస్య విశ్లేషణ',
+    aiTranscriptLabel: 'మాట్లాడిన వివరాలు (ట్రాన్స్‌క్రిప్ట్)',
+    aiSummaryLabel: 'వ్యవసాయ సమస్య సారాంశం',
+    aiSymptomsLabel: 'గుర్తించిన తెగులు లక్షణాలు',
+    aiConditionsLabel: 'సంభావ్య తెగుళ్లు/సమస్యలు',
+    aiAeoReviewLabel: 'AEO అధికారి ప్రత్యక్ష పరిశీలన అవసరం',
+    valAttached: 'జోడించబడింది',
+    valNone: 'లేదు',
+    valNotProvided: 'ఇవ్వలేదు',
+    btnReportAnother: 'మరొక సమస్యను నమోదు చేయండి',
+    btnBackHome: 'హోమ్ పేజీకి వెళ్లండి',
+
+    // Officer Page
+    officerTitle: 'వ్యవసాయ అధికారుల పోర్టల్',
+    officerSubtitle: 'వ్యవసాయ విస్తరణ అధికారులు (AEO) & వ్యవసాయ శాఖ',
+    officerNoticeTitle: 'అధికారుల లాగిన్',
+    officerNoticeText: 'అధికారుల లాగిన్ మరియు ఫీల్డ్ నిర్వహణ డ్యాష్‌బోర్డ్.',
+    officerNoticeSubtext: 'రైతులు లాగిన్ లేకుండా నేరుగా పంట సమస్యలను నివేదించవచ్చు.',
+    btnReturnFarmer: '← రైతు సమస్య నమోదు పేజీకి వెళ్లండి',
+
+    // Footer
+    footerTitle: 'కిసాన్‌సాథి &mdash; AI ఆధారిత రైతు సమస్యల పరిష్కార వేదిక',
+    footerSubtext: 'రైతుల సమస్యలను నేరుగా వ్యవసాయ అధికారులకు మరియు AI ద్వారా వేగంగా చేరవేసే వేదిక.',
+
+    // Crops List
+    crops: [
+      { value: 'వరి', label: 'వరి (Paddy)' },
+      { value: 'మిరప', label: 'మిరప (Chilli)' },
+      { value: 'పత్తి', label: 'పత్తి (Cotton)' },
+      { value: 'మొక్కజొన్న', label: 'మొక్కజొన్న (Maize)' },
+      { value: 'కందులు', label: 'కందులు (Red Gram)' },
+      { value: 'టమాటా', label: 'టమాటా (Tomato)' },
+      { value: 'వేరుశనగ', label: 'వేరుశనగ (Groundnut)' },
+      { value: 'చెరకు', label: 'చెరకు (Sugarcane)' },
+      { value: 'ఇతర పంట', label: 'ఇతర పంట (Other)' },
+    ],
+  },
+
+  hi: {
+    // Brand & Nav
+    appName: 'किसानसाथी',
+    tagline: 'स्मार्ट फसल साथी',
+    navHome: 'होम',
+    navServices: 'सेवाएं',
+    navAbout: 'हमारे बारे में',
+    navContact: 'संपर्क करें',
+    navReport: 'समस्या दर्ज करें',
+    navOfficerLogin: 'अधिकारी लॉगिन',
+    apiConnected: 'सर्वर कनेक्टेड',
+    apiConnecting: 'कनेक्ट हो रहा है...',
+    apiOffline: 'सर्वर ऑफलाइन',
+
+    // Landing Page Hero
+    heroBadge: 'किसान के साथ, हर कदम पर',
+    heroBrand: 'KisaanSathi',
+    heroTitle: 'आपकी फसल का स्मार्ट साथी',
+    heroDescription: 'AI आधारित तकनीक से फसल की समस्याओं को समझकर तुरंत समाधान और कृषि अधिकारियों से विश्वसनीय सलाह प्रदान करने वाला मंच।',
+    heroCta: 'समस्या है? अभी दर्ज करें →',
+    heroAudioHint: 'आवाज, वीडियो व फोटो द्वारा आसानी से रिपोर्ट करें',
+
+    // How It Works / User Flow
+    howItWorksTitle: 'हमारी कार्य प्रणाली',
+    howItWorksSubtitle: 'KisaanSathi के साथ 4 आसान चरणों में पाएं सटीक समाधान',
+    step1Num: '1',
+    step1Title: 'समस्या दर्ज करें',
+    step1Text: 'आवाज (वॉयस), वीडियो स्कैन, फोटो या लिखकर आसानी से फसल की समस्या बताएं।',
+    step2Num: '2',
+    step2Title: 'AI विश्लेषण',
+    step2Text: 'हमारा AI फसल के लक्षणों और कीटों का तुरंत विश्लेषण करता है।',
+    step3Num: '3',
+    step3Title: 'विशेषज्ञ सलाह',
+    step3Text: 'कृषि विस्तार अधिकारी (AEO) सही और सुरक्षित उपचार की पुष्टि करते हैं।',
+    step4Num: '4',
+    step4Title: 'बेहतर फसल व उपज',
+    step4Text: 'सटीक सलाह से फसल सुरक्षित करें और भरपूर पैदावार प्राप्त करें।',
+
+    // AI Feature Deep Dive
+    aiFeatureBadge: 'मल्टीमॉडल AI तकनीक',
+    aiFeatureTitle: 'AI की शक्ति से कृषि को नई दिशा',
+    aiFeatureDesc: 'फसल की बीमारी या कीट पहचानना अब हुआ बेहद आसान। अपनी भाषा में बोलें या पौधे का वीडियो/फोटो लें।',
+    aiFeature1: 'आधुनिक AI मॉडल द्वारा अत्यंत सटीक रोग पहचान',
+    aiFeature2: 'फोटो, ऑडियो, वीडियो और टेक्स्ट सभी प्रारूपों का पूर्ण समर्थन',
+    aiFeature3: 'त्वरित और सरकारी कृषि अधिकारियों द्वारा प्रमाणित सलाह',
+    aiFeature4: 'विशेष रूप से भारतीय कृषि और फसलों के लिए निर्मित',
+
+    // Comparison Section
+    comparisonTitle: 'पारंपरिक तरीकों की तुलना में हम बेहतर क्यों?',
+    comparisonSubtitle: 'धीमे और महंगे तरीकों को छोड़ें, KisaanSathi से पाएं तुरंत समाधान',
+    traditionalTitle: 'पारंपरिक तरीका',
+    traditionalItem1: 'अधिकारियों या विशेषज्ञों से मिलने में कई दिन लग जाते हैं',
+    traditionalItem2: 'सटीक और विश्वसनीय जानकारी मिलना कठिन',
+    traditionalItem3: 'यात्रा व परामर्श का अधिक खर्च',
+    traditionalItem4: 'देरी से समाधान मिलने पर फसल खराब हो जाती है',
+    kisaanTitle: 'KisaanSathi',
+    kisaanItem1: 'खेत से कभी भी, कहीं भी 24/7 तत्काल सहायता',
+    kisaanItem2: 'AI + प्रमाणित कृषि विस्तार अधिकारी की विशेषज्ञ सलाह',
+    kisaanItem3: 'वॉयस या मोबाइल ऐप में अपनी भाषा में आसान उपयोग',
+    kisaanItem4: 'मिनटों में तेज व वैज्ञानिक समाधान',
+
+    // Stats Bar
+    stat1Value: '10K+',
+    stat1Label: 'किसानों का भरोसा',
+    stat2Value: '25K+',
+    stat2Label: 'सुलझाई गई समस्याएं',
+    stat3Value: '50+',
+    stat3Label: 'फसलें सम्मिलित',
+    stat4Value: '99%',
+    stat4Label: 'संतुष्टि रेटिंग',
+
+    // Bottom CTA Banner
+    ctaBannerTitle: 'फसल की समस्या के लिए अब इंतजार क्यों?',
+    ctaBannerSubtitle: 'KisaanSathi के साथ कदम बढ़ाएं और अपनी फसल को सुरक्षित करें।',
+    ctaBannerBtn: 'अभी समस्या दर्ज करें →',
+
+    // Farmer Page / Form
+    formTitle: 'फसल की समस्या दर्ज करें',
+    formSubtitle: 'कोई लॉगिन या पासवर्ड आवश्यक नहीं है। बोलकर या लिखकर विवरण दें।',
+    labelName: 'आपका नाम',
+    placeholderName: 'उदा. रमेश सिंह',
+    labelPhone: 'मोबाइल नंबर',
+    placeholderPhone: 'उदा. 9876543210 या +91 9876543210',
+    phoneHint: 'केवल अधिकारियों द्वारा संपर्क हेतु। OTP की आवश्यकता नहीं।',
+    labelCrop: 'फसल का नाम (वैकल्पिक)',
+    placeholderCustomCrop: 'फसल का नाम लिखें',
+    labelDescription: 'समस्या का विवरण (या नीचे बोलें)',
+    placeholderDescription: 'लक्षण बताएं: पत्तियां पीली पड़ना, पत्तियों में छेद, तना छेदक कीट, सड़न आदि।',
+    labelVoice: 'बोलकर समस्या दर्ज करें (Voice Recording)',
+    btnStartRecording: 'बोलकर समस्या बताएं',
+    btnStopRecording: 'रिकॉर्डिंग समाप्त',
+    btnRecordAgain: 'पुनः बोलें',
+    btnClearVoice: 'आवाज हटाएं',
+    voiceAttached: 'आवाज रिकॉर्ड हुई',
+    voiceRecordingActive: 'रिकॉर्डिंग जारी है... बोलिए',
+    voiceHint: 'अपनी भाषा में बोलें। AI आपकी आवाज को टेक्स्ट और लक्षणों में बदल देगा।',
+    micPermissionDenied: 'माइक्रोफोन की अनुमति अस्वीकृत। ब्राउज़र सेटिंग्स में माइक्रोफोन की अनुमति दें।',
+    micError: 'माइक्रोफोन उपलब्ध नहीं है।',
+    voiceUnsupported: 'इस ब्राउज़र में वॉयस रिकॉर्डिंग समर्थित नहीं है।',
+    labelPhoto: 'फोटो या वीडियो जोड़ें (वैकल्पिक)',
+    btnTakePhoto: 'फोटो लें या गैलरी से चुनें',
+    btnRemovePhoto: 'फोटो हटाएं',
+    photoHint: 'प्रभावित पत्तियों या कीटों की स्पष्ट फोटो से अधिकारी जल्द निदान कर पाते हैं।',
+    labelLocation: 'खेत का स्थान (GPS)',
+    gpsDetecting: 'GPS लोकेशन खोजी जा रही है...',
+    gpsDetected: 'GPS लोकेशन प्राप्त हुई',
+    gpsDenied: 'GPS चालू नहीं है',
+    gpsDeniedHint: 'GPS न होने पर भी आपकी रिपोर्ट सफलतापूर्वक दर्ज होगी।',
+    btnRetryGps: 'पुनः प्रयास करें',
+    btnSubmit: 'समस्या सबमिट करें',
+    btnSubmitting: 'सबमिट हो रहा है एवं AI विश्लेषण जारी है...',
+    errorTitle: 'त्रुटि हुई',
+    valNameRequired: 'कृपया अपना नाम दर्ज करें।',
+    valPhoneRequired: 'कृपया 10 अंकों का मोबाइल नंबर दर्ज करें।',
+    valDescRequired: 'कृपया समस्या का विवरण दें या आवाज रिकॉर्ड करें।',
+    valPhotoSize: 'फोटो का आकार 10MB से कम होना चाहिए।',
+
+    // Confirmation Screen
+    successTitle: 'समस्या सफलतापूर्वक दर्ज हो गई',
+    successSubtitle: 'आपकी कृषि समस्या हमारे सिस्टम में रिकॉर्ड कर ली गई है',
+    refIdLabel: 'संदर्भ संख्या (Reference ID)',
+    confirmMessage: 'आपकी फसल समस्या दर्ज कर ली गई है।',
+    confirmNextStep: 'आगे के चरणों में यह रिपोर्ट संबंधित कृषि विस्तार अधिकारी को भेजी जाएगी।',
+    summaryTitle: 'दर्ज विवरण',
+    summaryFarmerName: 'किसान का नाम',
+    summaryMobile: 'मोबाइल नंबर',
+    summaryCrop: 'फसल',
+    summaryGps: 'GPS लोकेशन',
+    summaryPhoto: 'फोटो',
+    summaryVoice: 'आवाज रिकॉर्डिंग',
+    aiInsightsTitle: 'AI आवाज एवं कृषि अर्थ विश्लेषण',
+    aiTranscriptLabel: 'बोले गए शब्द (Transcript)',
+    aiSummaryLabel: 'कृषि समस्या का सारांश',
+    aiSymptomsLabel: 'पहचाने गए लक्षण',
+    aiConditionsLabel: 'संभावित बीमारियां / कीट',
+    aiAeoReviewLabel: 'कृषि अधिकारी (AEO) प्रत्यक्ष समीक्षा आवश्यक',
+    valAttached: 'संलग्न',
+    valNone: 'कोई नहीं',
+    valNotProvided: 'उपलब्ध नहीं',
+    btnReportAnother: 'अन्य समस्या दर्ज करें',
+    btnBackHome: 'मुख्य पृष्ठ पर लौटें',
+
+    // Officer Page
+    officerTitle: 'कृषि अधिकारी पोर्टल',
+    officerSubtitle: 'कृषि विस्तार अधिकारी (AEO) एवं कृषि विभाग',
+    officerNoticeTitle: 'अधिकारी लॉगिन',
+    officerNoticeText: 'अधिकारी लॉगिन एवं फील्ड प्रबंधन डैशबोर्ड।',
+    officerNoticeSubtext: 'किसान बिना लॉगिन किए सीधे फसल समस्याओं की रिपोर्ट कर सकते हैं।',
+    btnReturnFarmer: '← किसान रिपोर्टिंग पृष्ठ पर लौटें',
+
+    // Footer
+    footerTitle: 'किसानसाथी &mdash; AI आधारित कृषि समस्या निवारण मंच',
+    footerSubtext: 'किसानों की समस्याओं को AI एवं कृषि अधिकारियों तक त्वरित पहुंचाने का विश्वसनीय माध्यम।',
+
+    // Crops List
+    crops: [
+      { value: 'धान', label: 'धान / चावल (Paddy)' },
+      { value: 'मिर्च', label: 'मिर्च (Chilli)' },
+      { value: 'कपास', label: 'कपास (Cotton)' },
+      { value: 'मक्का', label: 'मक्का (Maize)' },
+      { value: 'अरहर', label: 'अरहर / तूर (Red Gram)' },
+      { value: 'टमाटर', label: 'टमाटर (Tomato)' },
+      { value: 'मूंगफली', label: 'मूंगफली (Groundnut)' },
+      { value: 'गन्ना', label: 'गन्ना (Sugarcane)' },
+      { value: 'अन्य फसल', label: 'अन्य फसल (Other)' },
+    ],
+  },
+
+  ta: {
+    // Brand & Nav
+    appName: 'KisaanSathi',
+    tagline: 'உழவர் தளம்',
+    navHome: 'முகப்பு',
+    navServices: 'சேவைகள்',
+    navAbout: 'பற்றி',
+    navContact: 'தொடர்பு',
+    navReport: 'சிக்கலைப் புகாரளிக்கவும்',
+    navOfficerLogin: 'அதிகாரி உள்நுழைவு',
+    apiConnected: 'சர்வர் இணைக்கப்பட்டது',
+    apiConnecting: 'இணைக்கிறது...',
+    apiOffline: 'சர்வர் ஆஃப்லைன்',
+
+    // Landing Page Hero
+    heroBadge: 'நேரடி உழவர் உதவி',
+    heroBrand: 'KisaanSathi',
+    heroTitle: 'உங்கள் பயிருக்கான ஸ்மார்ட் துணை',
+    heroDescription: 'குரல், வீடியோ மற்றும் புகைப்படங்கள் மூலம் பயிர் நோய்களை AI ஆய்வு செய்து விவசாய அதிகாரிகளிடமிருந்து விரைவான தீர்வுகளை வழங்குகிறது.',
+    heroCta: 'சந்தேகம் உள்ளதா? புகாரளிக்கவும் →',
+    heroAudioHint: 'குரல், வீடியோ மற்றும் புகைப்படம் மூலம் பதிவு செய்யலாம்',
+
+    // How It Works / User Flow
+    howItWorksTitle: 'இது எப்படி வேலை செய்கிறது?',
+    howItWorksSubtitle: '4 எளிய படிகளில் உங்கள் பயிர் சிக்கலுக்கு உடனடி தீர்வு',
+    step1Num: '1',
+    step1Title: 'சிக்கலைப் பதிவு செய்யவும்',
+    step1Text: 'குரல், வீடியோ ஸ்கேன், புகைப்படம் அல்லது எழுதி உங்கள் தாய்மொழியில் தெரிவிக்கவும்.',
+    step2Num: '2',
+    step2Title: 'AI ஆய்வு',
+    step2Text: 'எங்கள் AI பயிர் அறிகுறிகளை உடனடியாக பகுப்பாய்வு செய்கிறது.',
+    step3Num: '3',
+    step3Title: 'நிபுணர் ஆலோசனை',
+    step3Text: 'வேளாண் விரிவாக்க அலுவலர்கள் (AEO) சரியான மருந்துகளை பரிந்துரைக்கின்றனர்.',
+    step4Num: '4',
+    step4Title: 'சிறந்த விளைச்சல்',
+    step4Text: 'துல்லியமான தீர்வு மூலம் பயிர்களைப் பாதுகாத்து அதிக மகசூல் பெறுங்கள்.',
+
+    // AI Feature Deep Dive
+    aiFeatureBadge: 'AI தொழில்நுட்பம்',
+    aiFeatureTitle: 'AI மூலம் விவசாயத்திற்கு புதிய வழி',
+    aiFeatureDesc: 'பயிர் நோய்களைக் கண்டறிவது இப்போது மிகவும் எளிது. தமிழில் பேசலாம் அல்லது வீடியோ எடுக்கலாம்.',
+    aiFeature1: 'மேம்பட்ட AI மாதிரிகள் மூலம் மிகத் துல்லியமான பகுப்பாய்வு',
+    aiFeature2: 'புகைப்படங்கள், ஆடியோ, வீடியோ மற்றும் உரை ஆதரவு',
+    aiFeature3: 'அரசு வேளாண் அதிகாரிகளால் சரிபார்க்கப்பட்ட நம்பகமான பரிந்துரைகள்',
+    aiFeature4: 'இந்திய வேளாண்மைக்கு பிரத்யேகமாக உருவாக்கப்பட்டது',
+
+    // Comparison Section
+    comparisonTitle: 'பாரம்பரிய முறைகளை விட நாம் ஏன் சிறந்தது?',
+    comparisonSubtitle: 'பழைய மெதுவான முறைகளுக்கு பதிலாக KisaanSathi மூலம் விரைவான பலன்கள்',
+    traditionalTitle: 'பாரம்பரிய முறை',
+    traditionalItem1: 'அதிகாரிகளை நேரில் சந்திக்க பல நாட்கள் ஆகலாம்',
+    traditionalItem2: 'துல்லியமான தகவல்கள் கிடைப்பது கடினம்',
+    traditionalItem3: 'பயணச் செலவுகள் அதிகம்',
+    traditionalItem4: 'தாமதமான ஆலோசனை பயிர் சேதத்தை அதிகரிக்கிறது',
+    kisaanTitle: 'KisaanSathi',
+    kisaanItem1: 'வயலில் இருந்தே 24/7 உடனடி உதவி',
+    kisaanItem2: 'AI மற்றும் வேளாண் அதிகாரிகளின் நிபுணர் வழிகாட்டுதல்',
+    kisaanItem3: 'உங்கள் தாய்மொழியில் மிக எளிய பயன்பாடு',
+    kisaanItem4: 'சில நிமிடங்களில் விரைவான மற்றும் அறிவியல் பூர்வமான தீர்வு',
+
+    // Stats Bar
+    stat1Value: '10K+',
+    stat1Label: 'விவசாயிகளின் நம்பிக்கை',
+    stat2Value: '25K+',
+    stat2Label: 'தீர்க்கப்பட்ட சிக்கல்கள்',
+    stat3Value: '50+',
+    stat3Label: 'பயிர்கள் சேர்க்கப்பட்டுள்ளன',
+    stat4Value: '99%',
+    stat4Label: 'திருப்தி மதிப்பீடு',
+
+    // Bottom CTA Banner
+    ctaBannerTitle: 'பயிர் சிக்கலுக்கு இனி காத்திருக்க வேண்டாம்!',
+    ctaBannerSubtitle: 'KisaanSathi உடன் இணைந்து பயிரை பாதுகாத்துக் கொள்ளுங்கள்.',
+    ctaBannerBtn: 'இப்போதே பதிவு செய்யவும் →',
+
+    // Farmer Page / Form
+    formTitle: 'பயிர் பிரச்சனையைப் புகாரளிக்கவும்',
+    formSubtitle: 'உள்நுழைவு தேவையில்லை. பேசியோ அல்லது எழுதியோ தெரிவிக்கவும்.',
+    labelName: 'உங்கள் பெயர்',
+    placeholderName: 'எ.கா. குமார்',
+    labelPhone: 'கைபேசி எண்',
+    placeholderPhone: 'எ.கா. 9876543210 அல்லது +91 9876543210',
+    phoneHint: 'அதிகாரிகள் தொடர்பு கொள்ள மட்டுமே. OTP தேவையில்லை.',
+    labelCrop: 'பயிர் பெயர் (விருப்பமானது)',
+    placeholderCustomCrop: 'பயிர் பெயரை உள்ளிடவும்',
+    labelDescription: 'பிரச்சனை விவரம் (அல்லது கீழே பேசவும்)',
+    placeholderDescription: 'இலைகள் மஞ்சள் நிறமாதல், இலைகளில் துளைகள், பூச்சித் தாக்குதல் போன்றவற்றை விவரிக்கவும்.',
+    labelVoice: 'குரல் மூலம் புகாரளிக்கவும் (Voice Recording)',
+    btnStartRecording: 'பேசிப் புகாரளிக்கவும்',
+    btnStopRecording: 'பதிவு முடிந்தது',
+    btnRecordAgain: 'மீண்டும் பேசவும்',
+    btnClearVoice: 'குரலை நீக்கு',
+    voiceAttached: 'குரல் பதிவு செய்யப்பட்டது',
+    voiceRecordingActive: 'பதிவாகிறது... பேசவும்',
+    voiceHint: 'தமிழில் தெளிவாகப் பேசவும். AI உங்கள் பேச்சை ஆய்வு செய்யும்.',
+    micPermissionDenied: 'மைக் அனுமதி மறுக்கப்பட்டது. பிரவுசர் அமைப்புகளில் மைக்கை அனுமதிக்கவும்.',
+    micError: 'மைக்கை அணுக முடியவில்லை.',
+    voiceUnsupported: 'இந்த உலாவியில் குரல் பதிவு வசதி இல்லை.',
+    labelPhoto: 'புகைப்படம் அல்லது வீடியோ (விருப்பமானது)',
+    btnTakePhoto: 'புகைப்படம் எடுக்கவும் / கேலரி',
+    btnRemovePhoto: 'புகைப்படத்தை நீக்கு',
+    photoHint: 'தெளிவான புகைப்படங்கள் அதிகாரிகள் விரைவாக நோய் கண்டறிய உதவும்.',
+    labelLocation: 'வயல் இருப்பிடம் (GPS)',
+    gpsDetecting: 'GPS இருப்பிடத்தைக் கண்டறிகிறது...',
+    gpsDetected: 'GPS இருப்பிடம் கண்டறியப்பட்டது',
+    gpsDenied: 'GPS இயக்கப்படவில்லை',
+    gpsDeniedHint: 'GPS இல்லாமலும் உங்கள் புகார் வெற்றிகரமாக சமர்ப்பிக்கப்படும்.',
+    btnRetryGps: 'மீண்டும் முயற்சிக்கவும்',
+    btnSubmit: 'சிக்கலைச் சமர்ப்பிக்கவும்',
+    btnSubmitting: 'சமர்ப்பிக்கிறது & குரலை ஆய்வு செய்கிறது...',
+    errorTitle: 'பிழை ஏற்பட்டது',
+    valNameRequired: 'தயவுசெய்து உங்கள் பெயரை உள்ளிடவும்.',
+    valPhoneRequired: 'தயவுசெய்து 10 இலக்க மொபைல் எண்ணை உள்ளிடவும்.',
+    valDescRequired: 'தயவுசெய்து பிரச்சனையை விவரிக்கவும் அல்லது பேசிப் பதிவு செய்யவும்.',
+    valPhotoSize: 'புகைப்படத்தின் அளவு 10MB க்கும் குறைவாக இருக்க வேண்டும்.',
+
+    // Confirmation Screen
+    successTitle: 'சிக்கல் வெற்றிகரமாக பதிவு செய்யப்பட்டது',
+    successSubtitle: 'உங்கள் விவசாயப் பிரச்சனை பதிவு செய்யப்பட்டுள்ளது',
+    refIdLabel: 'குறிப்பு எண் (Reference ID)',
+    confirmMessage: 'உங்கள் பயிர் பிரச்சனை எங்கள் அமைப்பில் பதிவு செய்யப்பட்டுள்ளது.',
+    confirmNextStep: 'அடுத்த கட்டத்தில் இது தொடர்புடைய வேளாண் விரிவாக்க அலுவலருக்கு அனுப்பப்படும்.',
+    summaryTitle: 'சமர்ப்பிக்கப்பட்ட விவரங்கள்',
+    summaryFarmerName: 'விவசாயி பெயர்',
+    summaryMobile: 'கைபேசி எண்',
+    summaryCrop: 'பயிர்',
+    summaryGps: 'GPS இருப்பிடம்',
+    summaryPhoto: 'புகைப்படம்',
+    summaryVoice: 'குரல் பதிவு',
+    aiInsightsTitle: 'AI குரல் & வேளாண் ஆய்வுத் தகவல்',
+    aiTranscriptLabel: 'பேசிய உரை (Transcript)',
+    aiSummaryLabel: 'வேளாண் சுருக்கம்',
+    aiSymptomsLabel: 'கண்டறியப்பட்ட அறிகுறிகள்',
+    aiConditionsLabel: 'சாத்தியமான பாதிப்புகள்',
+    aiAeoReviewLabel: 'வேளாண் அதிகாரி நேரடி ஆய்வு தேவை',
+    valAttached: 'இணைக்கப்பட்டுள்ளது',
+    valNone: 'இல்லை',
+    valNotProvided: 'வழங்கப்படவில்லை',
+    btnReportAnother: 'மற்றொரு சிக்கலைப் புகாரளிக்கவும்',
+    btnBackHome: 'முகப்புக்குத் திரும்பு',
+
+    // Officer Page
+    officerTitle: 'வேளாண் அலுவலர் தளம்',
+    officerSubtitle: 'வேளாண் விரிவாக்க அலுவலர்கள் (AEO) தளம்',
+    officerNoticeTitle: 'அலுவலர் உள்நுழைவு',
+    officerNoticeText: 'அலுவலர் உள்நுழைவு மற்றும் களப்பணி மேலாண்மை.',
+    officerNoticeSubtext: 'விவசாயிகள் உள்நுழையாமல் நேரடியாகப் பயிர் பிரச்சனைகளைப் புகாரளிக்கலாம்.',
+    btnReturnFarmer: '← உழவர் புகார் பக்கத்திற்குத் திரும்பவும்',
+
+    // Footer
+    footerTitle: 'KisaanSathi &mdash; AI வேளாண் ஆலோசனை மற்றும் தீர்வு தளம்',
+    footerSubtext: 'விவசாயிகளின் புகார்களை நேரடியாக வேளாண் அதிகாரிகளுக்கு கொண்டு சேர்க்கிறது.',
+
+    // Crops List
+    crops: [
+      { value: 'நெல்', label: 'நெல் (Paddy)' },
+      { value: 'மிளகாய்', label: 'மிளகாய் (Chilli)' },
+      { value: 'பருத்தி', label: 'பருத்தி (Cotton)' },
+      { value: 'மக்காச்சோளம்', label: 'மக்காச்சோளம் (Maize)' },
+      { value: 'துவரை', label: 'துவரை (Red Gram)' },
+      { value: 'தக்காளி', label: 'தக்காளி (Tomato)' },
+      { value: 'நிலக்கடலை', label: 'நிலக்கடலை (Groundnut)' },
+      { value: 'கரும்பு', label: 'கரும்பு (Sugarcane)' },
+      { value: 'மற்ற பயிர்', label: 'மற்ற பயிர் (Other)' },
+    ],
+  },
+};
+
+const LanguageContext = createContext();
+
+export function LanguageProvider({ children }) {
+  const [currentLang, setCurrentLang] = useState(() => {
+    return localStorage.getItem('kisaansathi_lang') || 'te';
+  });
+
+  const changeLanguage = (langCode) => {
+    if (translations[langCode]) {
+      setCurrentLang(langCode);
+      localStorage.setItem('kisaansathi_lang', langCode);
+    }
+  };
+
+  const t = translations[currentLang] || translations.te;
+
+  const langNames = {
+    te: 'తెలుగు',
+    en: 'English',
+    hi: 'हिन्दी',
+    ta: 'தமிழ்',
+  };
+
+  const currentLanguageName = langNames[currentLang] || 'తెలుగు';
+
+  return (
+    <LanguageContext.Provider
+      value={{
+        currentLang,
+        changeLanguage,
+        t,
+        languages: LANGUAGES,
+        currentLanguageName,
+      }}
+    >
+      {children}
+    </LanguageContext.Provider>
+  );
+}
+
+export function useLanguage() {
+  const context = useContext(LanguageContext);
+  if (!context) {
+    throw new Error('useLanguage must be used within a LanguageProvider');
+  }
+  return context;
+}
+
