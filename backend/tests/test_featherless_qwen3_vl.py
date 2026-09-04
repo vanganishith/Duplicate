@@ -353,7 +353,11 @@ class TestFeatherlessQwen3VL(unittest.TestCase):
 
         inc_id = str(uuid.uuid4())
         mock_create_incident.return_value = {
+            "success": True,
             "incident_id": inc_id,
+            "farmer_id": "farmer-12345",
+            "reference_id": "REF-9999",
+            "message": "Incident submitted successfully",
             "photos": ["/uploads/photos/test_1.jpg"]
         }
         mock_vision.return_value = {"images": []}
@@ -375,11 +379,11 @@ class TestFeatherlessQwen3VL(unittest.TestCase):
             },
             files=[("photos", ("room.jpg", b"fake-bytes-1" * 10, "image/jpeg"))]
         )
-        self.assertEqual(resp1.status_code, 422)
+        self.assertEqual(resp1.status_code, 400)
         d1 = resp1.json()
         detail1 = d1.get("detail", d1)
         self.assertTrue(detail1.get("photo_retry_required"))
-        self.assertIn("evaluation", detail1)
+        self.assertIn("image_evaluations", detail1)
 
         # Scenario B: Farmer retries photos with valid crop photo -> 201 Created
         mock_eval_mm.return_value = {

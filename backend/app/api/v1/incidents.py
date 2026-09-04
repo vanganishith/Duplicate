@@ -402,6 +402,8 @@ async def submit_incident_form(
                 result["multimodal_error"] = str(mm_err)
 
         return result
+    except HTTPException:
+        raise
     except ValueError as ve:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -520,6 +522,10 @@ async def process_indic_asr(
     "/voice/analyze",
     summary="Extract Agricultural Meaning from Confirmed Transcript",
     description="Passes farmer-verified transcript text to Agricultural LLM for structured entity extraction.",
+)
+@router.post(
+    "/incidents/voice/analyze",
+    include_in_schema=False
 )
 async def analyze_confirmed_transcript(
     payload: Dict[str, Any] = Body(...)
