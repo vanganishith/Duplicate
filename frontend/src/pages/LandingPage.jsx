@@ -79,6 +79,9 @@ export default function LandingPage() {
               <Link to="/report" className="btn btn-hero-primary">
                 <span>{t.heroCta}</span>
               </Link>
+              <Link to="/community" className="btn btn-secondary">
+                <span>👥 Farmer Community</span>
+              </Link>
             </div>
 
             <div className="hero-voice-note">

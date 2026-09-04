@@ -155,6 +155,12 @@ export default function EvidenceComparisonCard({ incident }) {
   const photoUrl = incident.photo_url || (photosList.length > 0 ? photosList[0] : null);
   const visionStructuredData = primaryAi?.structured_data?.vision || aiRecords.find((r) => r.structured_data?.vision)?.structured_data?.vision || null;
 
+  // Multimodal AI Evidence & Safe AEO Approach
+  const multimodalData = primaryAi?.structured_data?.multimodal || incident.multimodal_ai || aiRecords.find((r) => r.structured_data?.multimodal)?.structured_data?.multimodal || null;
+  const assessment = multimodalData?.assessment || incident.assessment || primaryAi?.structured_data?.assessment || null;
+  const safeAeoApproach = primaryAi?.structured_data?.safe_aeo_approach || incident.safe_aeo_approach || multimodalData?.safe_aeo_approach || null;
+  const imageEvaluations = multimodalData?.images || [];
+
   // Rejection Record (if incident was rejected by an officer)
   const rejectionData = primaryAi?.structured_data?.rejection || aiRecords.find((r) => r.structured_data?.rejection)?.structured_data?.rejection || null;
   const isRejected = incident.status === 'REJECTED' || !!rejectionData;
@@ -447,6 +453,43 @@ export default function EvidenceComparisonCard({ incident }) {
                     <span>No AI visual analysis is available for this incident. Officer visual inspection required.</span>
                   </div>
                 )}
+
+                {/* Per-Image Evaluation & Agricultural Relevance */}
+                {imageEvaluations && imageEvaluations.length > 0 && (
+                  <div className="image-evals-list" style={{ marginTop: '16px' }} data-testid="per-image-eval-list">
+                    <h5 style={{ margin: '0 0 10px 0', fontSize: '0.875rem', color: '#334155', fontWeight: 600 }}>
+                      Per-Image Evidence Evaluation:
+                    </h5>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {imageEvaluations.map((ev, idx) => (
+                        <div key={idx} style={{ padding: '10px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.85rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                            <span style={{ fontWeight: 600, color: '#1e293b' }}>Photo #{ev.image_index || idx + 1}</span>
+                            <span className={`status-pill ${
+                              ev.status === 'RELEVANT' ? 'status-pill-resolved' :
+                              ev.status === 'LIMITED_EVIDENCE' ? 'status-pill-progress' :
+                              'status-pill-rejected'
+                            }`} style={{ fontSize: '0.725rem', padding: '2px 8px' }}>
+                              {ev.status}
+                            </span>
+                          </div>
+                          <p style={{ margin: 0, color: '#475569', fontSize: '0.8125rem', lineHeight: 1.4 }}>
+                            {ev.relationship_to_complaint}
+                          </p>
+                          {ev.visual_evidence && ev.visual_evidence.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                              {ev.visual_evidence.map((ve, vIdx) => (
+                                <span key={vIdx} style={{ fontSize: '0.7rem', padding: '1px 6px', background: '#dbeafe', color: '#1e40af', borderRadius: '4px' }}>
+                                  ✓ {ve}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="empty-panel-box" data-testid="no-photo-empty-state">
@@ -467,20 +510,68 @@ export default function EvidenceComparisonCard({ incident }) {
             <span className="panel-icon">🧠</span>
             <div>
               <h3 className="panel-title">AI Assessment</h3>
-              <span className="panel-subtitle">Cross-evidence synthesis</span>
+              <span className="panel-subtitle">Multimodal cross-evidence reasoning</span>
             </div>
           </div>
-          <span className="provenance-chip ai-chip">Reasoning</span>
+          <span className="provenance-chip ai-chip">Qwen3-VL Reasoning</span>
         </div>
 
         <div className="evidence-panel-body">
-          <div className="assessment-placeholder-clean" data-testid="ai-assessment-placeholder">
-            <div className="placeholder-icon-wrap">⚡</div>
-            <div>
-              <h4 className="placeholder-title">AI Assessment not available yet.</h4>
-              <p className="placeholder-desc">
-                This section will compare farmer-reported information with visual evidence after the agricultural reasoning model is enabled.
+          {assessment ? (
+            <div className="assessment-content-box" style={{ padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }} data-testid="ai-assessment-content">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#475569' }}>Relationship to Reported Issue:</span>
+                <span className={`status-pill ${
+                  assessment.relationship === 'CONSISTENT' ? 'status-pill-resolved' :
+                  assessment.relationship === 'PARTIALLY_CONSISTENT' ? 'status-pill-progress' :
+                  assessment.relationship === 'LIMITED_EVIDENCE' ? 'status-pill-new' : 'status-pill-rejected'
+                }`} data-testid="assessment-relationship-pill">
+                  {assessment.relationship || 'CONSISTENT'}
+                </span>
+              </div>
+              <p style={{ margin: '0 0 12px 0', fontSize: '0.9375rem', lineHeight: 1.6, color: '#1e293b' }}>
+                {assessment.summary || 'Visual evidence is consistent with the symptoms reported in the farmer voice complaint.'}
               </p>
+              <div style={{ fontSize: '0.8125rem', color: '#64748b', fontStyle: 'italic', borderTop: '1px solid #e2e8f0', paddingTop: '8px' }}>
+                ℹ️ Preliminary AI assessment comparing farmer voice transcript and uploaded image evidence. Diseases are not confirmed. Human AEO field verification is required.
+              </div>
+            </div>
+          ) : (
+            <div className="assessment-placeholder-clean" data-testid="ai-assessment-placeholder">
+              <div className="placeholder-icon-wrap">⚡</div>
+              <div>
+                <h4 className="placeholder-title">AI Assessment pending or not available.</h4>
+                <p className="placeholder-desc">
+                  Officer visual inspection of the uploaded photo and voice transcript is recommended.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ============================================================== */}
+      {/* SECTION 4: SAFE AEO VERIFICATION APPROACH                       */}
+      {/* ============================================================== */}
+      <section className="evidence-panel safe-approach-panel" data-testid="safe-aeo-approach-section" style={{ marginTop: '16px' }}>
+        <div className="evidence-panel-header" style={{ borderLeft: '4px solid #16a34a' }}>
+          <div className="panel-title-wrap">
+            <span className="panel-icon">🛡️</span>
+            <div>
+              <h3 className="panel-title" style={{ color: '#15803d' }}>Safe AEO Verification Approach</h3>
+              <span className="panel-subtitle">Actionable, non-prescriptive field verification guidance</span>
+            </div>
+          </div>
+          <span className="provenance-chip" style={{ background: '#dcfce7', color: '#15803d' }}>Official Protocol</span>
+        </div>
+
+        <div className="evidence-panel-body">
+          <div style={{ padding: '16px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0' }} data-testid="safe-aeo-approach-content">
+            <p style={{ margin: 0, fontSize: '0.9375rem', lineHeight: 1.6, color: '#166534', fontWeight: 500 }}>
+              {safeAeoApproach || 'Inspect affected and healthy leaves in the field, verify symptom spread and severity, check soil moisture and crop-management conditions, and follow the applicable agricultural advisory before recommending treatment.'}
+            </p>
+            <div style={{ marginTop: '12px', fontSize: '0.8125rem', color: '#15803d', borderTop: '1px solid #dcfce7', paddingTop: '8px' }}>
+              🔒 <strong>Safety Rule:</strong> AI does not prescribe chemical or pesticide dosages. The Agricultural Extension Officer is the final agricultural authority.
             </div>
           </div>
         </div>

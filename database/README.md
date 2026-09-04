@@ -14,7 +14,18 @@ RythuBandhu uses **Supabase PostgreSQL** with the **PostGIS** geospatial extensi
 
 ---
 
-## Database Schema (5 Tables)
+## Database Schema
+
+The schema includes the farmer profile, incident workflow, AEO records, and the
+community foundation. `farmers` is an independent profile entity identified by
+its unique canonical Indian phone number; each farmer can own many incidents,
+posts, comments, and reactions.
+
+Community posts may optionally reference an incident. Community comments use a
+nullable `officer_id` to distinguish official AEO responses from farmer
+comments. `community_confirmations` remains the existing "Me Too" relationship
+to an incident and is not a second incident type. Its optional location is
+backend-only for geographic aggregation and has no public RLS policy.
 
 ```text
   +------------------+         +-------------------------+

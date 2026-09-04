@@ -7,7 +7,7 @@ import { submitOfficerAdvisory } from '../services/api';
  * Features:
  * - AEO writes action advisory for farmer.
  * - Language selection defaults to farmer's preferred language.
- * - Gemini translates faithfully (NO AI-invented treatments).
+ * - AI translates faithfully (NO AI-invented treatments).
  * - gTTS generates local-language audio for the farmer.
  * - Audio playback and dual-text (localized + original preserved) display.
  */
@@ -248,7 +248,7 @@ export default function OfficerAdvisorySection({
         <div className="advisory-safety-note" data-testid="advisory-safety-note">
           <span className="safety-icon">🛡️</span>
           <span className="safety-text">
-            <strong>Authoritative Advice:</strong> The AEO is the official agricultural authority. Gemini is used strictly for linguistic translation into the farmer&apos;s dialect and does not invent or alter treatments.
+            <strong>Authoritative Advice:</strong> The AEO is the official agricultural authority. AI is used strictly for linguistic translation into the farmer&apos;s dialect and does not invent or alter treatments.
           </span>
         </div>
       </div>

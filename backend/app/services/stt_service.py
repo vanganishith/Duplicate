@@ -46,7 +46,7 @@ async def transcribe_audio_gstt_rest(
     PRIMARY STT PATH:
     Transcribes audio using Google Speech-to-Text v1 REST API.
     """
-    key = api_key or settings.GOOGLE_API_KEY or settings.GEMINI_API_KEY
+    key = api_key or settings.GOOGLE_API_KEY
     if not key:
         raise ValueError("Google API key is not configured in backend environment.")
 
@@ -97,86 +97,6 @@ async def transcribe_audio_gstt_rest(
         return transcript
 
 
-async def transcribe_audio_gemini(
-    audio_bytes: bytes,
-    content_type: str = "audio/webm",
-    language_hint: str = "Telugu",
-    api_key: Optional[str] = None
-) -> str:
-    """
-    Transcribes audio using Gemini Multimodal Audio API with multi-key rotation and retry.
-    """
-    candidate_keys = [api_key] if api_key else settings.get_gemini_keys()
-    if not candidate_keys:
-        fallback_single = settings.GEMINI_API_KEY
-        if fallback_single:
-            candidate_keys = [fallback_single]
-
-    if not candidate_keys:
-        raise ValueError("Gemini API key is not configured in backend environment.")
-
-    logger.info(f"[STT] Invoking Gemini Multimodal audio transcription (model: {settings.LLM_MODEL_NAME}, lang: {language_hint}, keys: {len(candidate_keys)})")
-    audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
-
-    prompt = (
-        f"You are an expert speech transcriber for Indian agricultural farmers. "
-        f"Transcribe this voice recording verbatim in its original spoken language (primarily {language_hint}, English, Telugu, Tamil, or Hindi). "
-        f"Return ONLY the exact spoken transcript without translation, explanations, quotes, or markdown formatting."
-    )
-
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "inline_data": {
-                            "mime_type": content_type,
-                            "data": audio_b64
-                        }
-                    },
-                    {
-                        "text": prompt
-                    }
-                ]
-            }
-        ],
-        "generationConfig": {
-            "temperature": 0.0,
-            "maxOutputTokens": 1024
-        }
-    }
-
-    last_err = None
-    data = None
-
-    for key_idx, key in enumerate(candidate_keys):
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.LLM_MODEL_NAME}:generateContent?key={key}"
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(url, json=payload)
-                if response.status_code == 200:
-                    data = response.json()
-                    break
-                else:
-                    logger.warning(f"[STT] Gemini key #{key_idx + 1} failed with status {response.status_code}: {response.text[:150]}")
-                    last_err = RuntimeError(f"Gemini transcription failed with status {response.status_code}: {response.text}")
-        except Exception as conn_err:
-            logger.warning(f"[STT] Connection error with key #{key_idx + 1}: {str(conn_err)}")
-            last_err = conn_err
-
-    if not data:
-        raise last_err or RuntimeError("All configured Gemini API keys failed.")
-
-    candidates = data.get("candidates", [])
-    if not candidates:
-        raise ValueError("No transcription generated from audio.")
-
-    parts = candidates[0].get("content", {}).get("parts", [])
-    if not parts:
-        raise ValueError("Empty transcription generated from audio.")
-
-    transcript = parts[0].get("text", "").strip()
-    logger.info(f"[STT] Gemini transcription completed (length: {len(transcript)} chars)")
 from app.services.indic_asr_service import transcribe_with_indic_conformer, INDIC_CONFORMER_MODEL_ID, INDIC_CONFORMER_VERSION
 
 
@@ -186,10 +106,9 @@ async def transcribe_audio(
     language: Optional[str] = "Telugu"
 ) -> Tuple[str, str]:
     """
-    Authoritative Final ASR Entry Point in Phase 4.
-    Attempts AI4Bharat IndicConformer on the complete finalized audio recording.
-    If local IndicConformer encounters an issue or requires fallback, gracefully
-    falls back to Google STT REST / Gemini Multimodal to guarantee high availability.
+    Authoritative Speech Recognition Entry Point.
+    Uses AI4Bharat IndicConformer on the finalized voice recording.
+    If IndicConformer encounters an issue, gracefully falls back to Google STT REST if configured.
     Returns tuple: (transcript, detected_language).
     """
     if not audio_bytes or len(audio_bytes) < MIN_AUDIO_BYTES:
@@ -208,31 +127,20 @@ async def transcribe_audio(
         if transcript and transcript.strip():
             return transcript.strip(), detected_language
     except Exception as indic_err:
-        logger.warning(f"[STT] IndicConformer failed or bypassed: {str(indic_err)}. Attempting Google STT / Gemini fallback...")
+        logger.warning(f"[STT] IndicConformer failed or bypassed: {str(indic_err)}. Attempting Google STT fallback...")
 
-    # 2. Secondary: Google STT REST
-    lang_code = get_language_code(language)
-    try:
-        transcript = await transcribe_audio_gstt_rest(
-            audio_bytes=audio_bytes,
-            language_code=lang_code
-        )
-        if transcript and transcript.strip():
-            logger.info(f"[STT] Google STT fallback succeeded: '{transcript}'")
-            return transcript.strip(), language or "Telugu"
-    except Exception as gstt_err:
-        logger.warning(f"[STT] Google STT fallback failed: {str(gstt_err)}. Attempting Gemini fallback...")
+    # 2. Secondary: Google STT REST (if configured)
+    if settings.GOOGLE_API_KEY:
+        lang_code = get_language_code(language)
+        try:
+            transcript = await transcribe_audio_gstt_rest(
+                audio_bytes=audio_bytes,
+                language_code=lang_code
+            )
+            if transcript and transcript.strip():
+                logger.info(f"[STT] Google STT fallback succeeded: '{transcript}'")
+                return transcript.strip(), language or "Telugu"
+        except Exception as gstt_err:
+            logger.warning(f"[STT] Google STT fallback failed: {str(gstt_err)}")
 
-    # 3. Tertiary: Gemini Multimodal Audio
-    try:
-        transcript = await transcribe_audio_gemini(
-            audio_bytes=audio_bytes,
-            content_type=content_type or "audio/webm",
-            language_hint=language or "Telugu"
-        )
-        if transcript and transcript.strip():
-            logger.info(f"[STT] Gemini audio fallback succeeded: '{transcript}'")
-            return transcript.strip(), language or "Telugu"
-    except Exception as gem_err:
-        logger.error(f"[STT] All STT engines failed: {str(gem_err)}")
-        raise RuntimeError(f"Audio transcription failed across all available STT engines. Details: {str(gem_err)}")
+    raise RuntimeError("Speech recognition could not process the voice recording. Please speak clearly and try again.")

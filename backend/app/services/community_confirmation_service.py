@@ -108,7 +108,7 @@ def record_community_confirmation(
     - Prevents duplicate submissions by the same farmer phone for the same incident.
     - Stores directly in database.
     - Captures optional GPS location of confirmation to increase map/cluster density.
-    - Aggregates counts without Gemini or artificial score inflation.
+    - Aggregates counts without external AI or artificial score inflation.
     - Never modifies original incident status, never creates a new AEO case, and never delays triage.
     """
     clean_response = response.strip().upper().replace(" ", "_")

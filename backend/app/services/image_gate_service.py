@@ -225,8 +225,7 @@ def check_vegetation_color_presence(img: Image.Image) -> Tuple[bool, float, Dict
 
 
 async def evaluate_agricultural_relevance(
-    img: Image.Image,
-    gemini_api_key: Optional[str] = None
+    img: Image.Image
 ) -> Dict[str, Any]:
     """
     Gate 2: Agricultural Relevance Gate.
@@ -240,66 +239,7 @@ async def evaluate_agricultural_relevance(
     """
     has_agri_color, color_score, color_details = check_vegetation_color_presence(img)
     
-    # Semantic verification via Gemini Vision if available
-    if gemini_api_key:
-        try:
-            import httpx
-            import base64
-            
-            thumb = img.copy()
-            thumb.thumbnail((480, 480))
-            buf = io.BytesIO()
-            thumb.save(buf, format="JPEG", quality=80)
-            img_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
-            
-            prompt = (
-                "You are an agricultural triage gate. Determine if this image is relevant to agriculture, crops, leaves, plants, or farm issues. "
-                "ACCEPT: crop leaves, plants, diseased foliage, fruits, vegetables, pests on crops, farm fields. "
-                "REJECT: humans, pets (dogs/cats), vehicles (cars/motorcycles), furniture, electronics, random household clutter, buildings. "
-                "Respond in strict JSON format: {\"is_agricultural\": true|false, \"subject\": \"short description\", \"confidence\": 0.0-1.0, \"reason\": \"explanation if rejected\"}"
-            )
-            
-            payload = {
-                "contents": [
-                    {
-                        "parts": [
-                            {"inline_data": {"mime_type": "image/jpeg", "data": img_b64}},
-                            {"text": prompt}
-                        ]
-                    }
-                ],
-                "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json"}
-            }
-            
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_api_key}"
-            async with httpx.AsyncClient(timeout=8.0) as client:
-                resp = await client.post(url, json=payload)
-                if resp.status_code == 200:
-                    import json
-                    text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-                    data = json.loads(text)
-                    is_agri = bool(data.get("is_agricultural", False))
-                    conf = float(data.get("confidence", 0.90))
-                    subject = data.get("subject", "unknown")
-                    
-                    if is_agri:
-                        return {
-                            "accepted": True,
-                            "confidence": conf,
-                            "subject": subject,
-                            "reason": None
-                        }
-                    else:
-                        return {
-                            "accepted": False,
-                            "confidence": conf,
-                            "subject": subject,
-                            "reason": FARMER_FRIENDLY_REJECTION_MESSAGES["non_agricultural"]
-                        }
-        except Exception as e:
-            logger.warning(f"Semantic agricultural relevance check fallback to local heuristic: {e}")
-            
-    # Local fallback heuristic:
+    # Local high-performance heuristic:
     if has_agri_color:
         conf = round(min(0.95, max(0.68, 0.55 + color_score)), 2)
         return {
@@ -352,8 +292,7 @@ def preprocess_for_inference(
 
 
 async def run_image_safety_gates(
-    image_bytes: bytes,
-    gemini_api_key: Optional[str] = None
+    image_bytes: bytes
 ) -> Dict[str, Any]:
     """
     Comprehensive Phase 5C Gate pipeline:
@@ -398,7 +337,7 @@ async def run_image_safety_gates(
         }
         
     # 3. Agricultural Relevance Gate
-    relevance_result = await evaluate_agricultural_relevance(img, gemini_api_key=gemini_api_key)
+    relevance_result = await evaluate_agricultural_relevance(img)
     if not relevance_result["accepted"]:
         return {
             "accepted": False,

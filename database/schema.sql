@@ -146,6 +146,56 @@ CREATE TABLE IF NOT EXISTS community_confirmations (
     CONSTRAINT unique_incident_farmer_confirmation UNIQUE (incident_id, farmer_phone)
 );
 
+ALTER TABLE community_confirmations
+    ADD COLUMN IF NOT EXISTS location GEOGRAPHY(Point, 4326) NULL;
+
+-- ==============================================================================
+-- TABLE 7: community_posts
+-- Farmer-authored discussion, optionally connected to an existing incident.
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS community_posts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    farmer_id UUID NOT NULL REFERENCES farmers(id) ON DELETE CASCADE,
+    incident_id UUID REFERENCES incidents(id) ON DELETE SET NULL,
+    content TEXT NOT NULL,
+    photo_url TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE community_posts
+    ADD COLUMN IF NOT EXISTS crop TEXT;
+
+-- ==============================================================================
+-- TABLE 8: community_comments
+-- Farmer comments, or official AEO responses when officer_id is populated.
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS community_comments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+    farmer_id UUID NOT NULL REFERENCES farmers(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    officer_id UUID REFERENCES officers(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE community_comments
+    ADD COLUMN IF NOT EXISTS officer_id UUID REFERENCES officers(id) ON DELETE SET NULL;
+
+-- ==============================================================================
+-- TABLE 9: community_comment_reactions
+-- Minimal helpful reaction; one farmer can add it once per comment.
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS community_comment_reactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    comment_id UUID NOT NULL REFERENCES community_comments(id) ON DELETE CASCADE,
+    farmer_id UUID NOT NULL REFERENCES farmers(id) ON DELETE CASCADE,
+    reaction TEXT NOT NULL CHECK (reaction = 'HELPFUL'),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_comment_farmer_reaction UNIQUE (comment_id, farmer_id, reaction)
+);
+
 -- ==============================================================================
 -- INDEXES FOR PERFORMANCE & GEOSPATIAL SEARCH
 -- ==============================================================================
@@ -164,6 +214,14 @@ CREATE INDEX IF NOT EXISTS idx_incidents_cluster_id ON incidents(cluster_id);
 CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents(status);
 CREATE INDEX IF NOT EXISTS idx_incidents_priority ON incidents(priority);
 CREATE INDEX IF NOT EXISTS idx_ai_analysis_incident_id ON ai_analysis(incident_id);
+CREATE INDEX IF NOT EXISTS idx_community_confirmations_incident_id ON community_confirmations(incident_id);
+CREATE INDEX IF NOT EXISTS idx_community_confirmations_location ON community_confirmations USING GIST(location);
+CREATE INDEX IF NOT EXISTS idx_community_posts_farmer_id ON community_posts(farmer_id);
+CREATE INDEX IF NOT EXISTS idx_community_posts_incident_id ON community_posts(incident_id);
+CREATE INDEX IF NOT EXISTS idx_community_comments_post_id ON community_comments(post_id);
+CREATE INDEX IF NOT EXISTS idx_community_comments_farmer_id ON community_comments(farmer_id);
+CREATE INDEX IF NOT EXISTS idx_community_comments_officer_id ON community_comments(officer_id);
+CREATE INDEX IF NOT EXISTS idx_community_comment_reactions_comment_id ON community_comment_reactions(comment_id);
 
 -- ==============================================================================
 -- AUTOMATED `updated_at` TRIGGERS
@@ -192,6 +250,18 @@ CREATE TRIGGER trigger_incidents_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS trigger_community_posts_updated_at ON community_posts;
+CREATE TRIGGER trigger_community_posts_updated_at
+    BEFORE UPDATE ON community_posts
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS trigger_community_comments_updated_at ON community_comments;
+CREATE TRIGGER trigger_community_comments_updated_at
+    BEFORE UPDATE ON community_comments
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
 -- ==============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- ==============================================================================
@@ -200,18 +270,54 @@ ALTER TABLE officers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE clusters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE incidents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_analysis ENABLE ROW LEVEL SECURITY;
+ALTER TABLE community_posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE community_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE community_comment_reactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE community_confirmations ENABLE ROW LEVEL SECURITY;
 
 -- Allow public read/write access via Backend Service Role & Public Anon Client for MVP
+DROP POLICY IF EXISTS "Allow public read on farmers" ON farmers;
 CREATE POLICY "Allow public read on farmers" ON farmers FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Allow public insert on farmers" ON farmers;
 CREATE POLICY "Allow public insert on farmers" ON farmers FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public update on farmers" ON farmers;
 CREATE POLICY "Allow public update on farmers" ON farmers FOR UPDATE USING (true);
 
+DROP POLICY IF EXISTS "Allow public read on officers" ON officers;
 CREATE POLICY "Allow public read on officers" ON officers FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Allow public read on clusters" ON clusters;
 CREATE POLICY "Allow public read on clusters" ON clusters FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Allow public read on incidents" ON incidents;
 CREATE POLICY "Allow public read on incidents" ON incidents FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Allow public insert on incidents" ON incidents;
 CREATE POLICY "Allow public insert on incidents" ON incidents FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public update on incidents" ON incidents;
 CREATE POLICY "Allow public update on incidents" ON incidents FOR UPDATE USING (true);
 
+DROP POLICY IF EXISTS "Allow public read on ai_analysis" ON ai_analysis;
 CREATE POLICY "Allow public read on ai_analysis" ON ai_analysis FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Allow public insert on ai_analysis" ON ai_analysis;
 CREATE POLICY "Allow public insert on ai_analysis" ON ai_analysis FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public read on community posts" ON community_posts;
+CREATE POLICY "Allow public read on community posts" ON community_posts FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Allow public insert on community posts" ON community_posts;
+CREATE POLICY "Allow public insert on community posts" ON community_posts FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public update on community posts" ON community_posts;
+CREATE POLICY "Allow public update on community posts" ON community_posts FOR UPDATE USING (true);
+
+DROP POLICY IF EXISTS "Allow public read on community comments" ON community_comments;
+CREATE POLICY "Allow public read on community comments" ON community_comments FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Allow public insert on community comments" ON community_comments;
+CREATE POLICY "Allow public insert on community comments" ON community_comments FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public update on community comments" ON community_comments;
+CREATE POLICY "Allow public update on community comments" ON community_comments FOR UPDATE USING (true);
+
+DROP POLICY IF EXISTS "Allow public read on community reactions" ON community_comment_reactions;
+CREATE POLICY "Allow public read on community reactions" ON community_comment_reactions FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Allow public insert on community reactions" ON community_comment_reactions;
+CREATE POLICY "Allow public insert on community reactions" ON community_comment_reactions FOR INSERT WITH CHECK (true);
+
+-- No public policies are created for community_confirmations. The backend
+-- service role can aggregate them while exact coordinates remain private.

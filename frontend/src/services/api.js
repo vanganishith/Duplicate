@@ -99,7 +99,13 @@ export async function submitIncident({
       } else if (data && data.message) {
         errorMessage = data.message;
       }
-      throw new Error(errorMessage);
+      const err = new Error(errorMessage);
+      if (data && typeof data.detail === 'object') {
+        err.photo_retry_required = Boolean(data.detail.photo_retry_required);
+        err.image_evaluations = data.detail.image_evaluations || [];
+        err.detail = data.detail;
+      }
+      throw err;
     }
 
     return data;
@@ -402,6 +408,94 @@ export async function getIncidentConfirmations(incidentId) {
     console.error('Error fetching community confirmations:', error);
     throw error;
   }
+}
+
+function communityProfilePayload() {
+  try {
+    const profile = JSON.parse(localStorage.getItem('kisaansathi_farmer_profile') || 'null');
+    return profile?.farmer_id ? { farmer_id: profile.farmer_id } : {};
+  } catch {
+    return {};
+  }
+}
+
+export async function getCommunityPosts(limit = 30) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/community/posts?limit=${limit}`);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.detail?.message || data?.message || 'Failed to load farmer community');
+  return data;
+}
+
+export async function lookupFarmerByPhone(phone) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/farmers/lookup?phone=${encodeURIComponent(phone)}`);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.detail?.message || data?.message || 'Failed to lookup farmer phone');
+  return data;
+}
+
+export async function getMyIssues(limit = 30, farmerPhone = null) {
+  const profile = farmerPhone ? { farmer_phone: farmerPhone } : communityProfilePayload();
+  const params = new URLSearchParams({ limit: String(limit), ...profile });
+  const response = await fetch(`${API_BASE_URL}/api/v1/community/my-issues?${params.toString()}`);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.detail?.message || data?.message || 'Failed to load your issues');
+  return data;
+}
+
+export async function getCommunityProblem(problemId) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/community/problems/${problemId}`);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.detail?.message || data?.message || 'Failed to load agricultural problem');
+  return data;
+}
+
+export async function createCommunityPost({ content, crop, incidentId = null, photoUrl = null }) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/community/posts`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...communityProfilePayload(), content, crop: crop || null, incident_id: incidentId || null, photo_url: photoUrl || null }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.detail?.message || data?.message || 'Failed to create community post');
+  return data;
+}
+
+export async function uploadCommunityPhoto(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await fetch(`${API_BASE_URL}/api/v1/community/photos`, { method: 'POST', body: formData });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.detail?.message || data?.message || 'Failed to upload community photo');
+  return data;
+}
+
+export async function addCommunityComment(postId, content) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/community/posts/${postId}/comments`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...communityProfilePayload(), content }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.detail?.message || data?.message || 'Failed to add comment');
+  return data;
+}
+
+export async function addProblemComment(problemId, content) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/community/problems/${problemId}/comments`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...communityProfilePayload(), content }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.detail?.message || data?.message || 'Failed to add comment');
+  return data;
+}
+
+export async function markCommunityCommentHelpful(commentId) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/community/comments/${commentId}/helpful`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(communityProfilePayload()),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.detail?.message || data?.message || 'Failed to mark comment Helpful');
+  return data;
 }
 
 /**

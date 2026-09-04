@@ -61,9 +61,9 @@ def localize_advisory_text(advisory_text: str, target_language: str) -> str:
     Phase 12: Translates/localizes the officer's exact advisory into the target language.
     
     CRITICAL SAFETY RULES:
-    1. AEO is the agricultural authority. Gemini ONLY translates the human officer's words.
-    2. Gemini must NOT invent, modify, or add any agricultural treatments.
-    3. If Gemini is unavailable or quota exceeded, falls back safely to original text.
+    1. AEO is the agricultural authority. AI ONLY translates the human officer's words.
+    2. AI must NOT invent, modify, or add any agricultural treatments.
+    3. If translation service is unavailable, falls back safely to original text.
     """
     if not advisory_text or not advisory_text.strip():
         return ""
@@ -76,13 +76,13 @@ def localize_advisory_text(advisory_text: str, target_language: str) -> str:
     if lang_code == "en":
         return clean_text
 
-    keys = settings.get_gemini_keys()
-    if not keys:
-        logger.warning("No valid Gemini API key found. Returning original text for advisory.")
+    api_key = settings.FEATHERLESS_API_KEY
+    if not api_key or not api_key.strip():
+        logger.info("No Featherless API key configured for advisory localization. Returning original text.")
         return clean_text
 
     system_instruction = (
-        f"You are a faithful translator for agricultural officer advisories in the RythuBandhu platform.\n"
+        f"You are a faithful translator for agricultural officer advisories in the KisaanSaathi platform.\n"
         f"Your ONLY job is to accurately translate the agricultural officer's exact advisory message into {target_name}.\n\n"
         f"CRITICAL SAFETY RULES:\n"
         f"1. DO NOT add, modify, omit, or invent any agricultural treatment, chemical, dosage, or advice.\n"
@@ -91,46 +91,36 @@ def localize_advisory_text(advisory_text: str, target_language: str) -> str:
         f"4. Output ONLY the translated message in {target_name} script (no Romanized transliteration, no quotes, no conversational filler).\n"
     )
 
-    model_name = getattr(settings, "LLM_MODEL_NAME", "gemini-1.5-flash")
+    base_url = settings.FEATHERLESS_BASE_URL.rstrip("/")
+    url = f"{base_url}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key.strip()}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": settings.FEATHERLESS_MODEL_NAME,
+        "messages": [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": f"Translate this officer advisory to {target_name}:\n{clean_text}"}
+        ],
+        "temperature": 0.1,
+        "max_tokens": 1024
+    }
 
-    for key in keys:
-        url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model_name}:generateContent?key={key}"
-        )
-
-        payload = {
-            "system_instruction": {
-                "parts": [{"text": system_instruction}]
-            },
-            "contents": [
-                {
-                    "role": "user",
-                    "parts": [{"text": f"Translate this officer advisory to {target_name}:\n{clean_text}"}]
-                }
-            ],
-            "generationConfig": {
-                "temperature": 0.1,
-                "maxOutputTokens": 1024,
-            }
-        }
-
-        try:
-            with httpx.Client(timeout=6.0) as client:
-                response = client.post(url, json=payload)
-                if response.status_code == 200:
-                    data = response.json()
-                    candidates = data.get("candidates", [])
-                    if candidates and len(candidates) > 0:
-                        content_parts = candidates[0].get("content", {}).get("parts", [])
-                        if content_parts and len(content_parts) > 0:
-                            translated = content_parts[0].get("text", "").strip()
-                            if translated:
-                                return translated
-                else:
-                    logger.warning("Gemini localization API returned status %s", response.status_code)
-        except Exception as e:
-            logger.warning("Gemini key error (%s), trying next candidate...", str(e))
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            response = client.post(url, headers=headers, json=payload)
+            if response.status_code == 200:
+                data = response.json()
+                choices = data.get("choices", [])
+                if choices:
+                    translated = choices[0].get("message", {}).get("content", "").strip()
+                    if translated:
+                        return translated
+            else:
+                logger.warning("Featherless advisory localization API returned status %s", response.status_code)
+    except Exception as e:
+        logger.warning("Featherless advisory translation error (%s), returning original text", str(e))
 
     return clean_text
 
@@ -175,7 +165,7 @@ def create_or_update_officer_advisory(
     """
     Phase 12: Processes and records an official AEO advisory for an incident.
     1. Preserves original AEO advisory text.
-    2. Localizes text to farmer's preferred language using Gemini (translation only).
+    2. Localizes text to farmer's preferred language using AI (translation only).
     3. Generates TTS audio using gTTS.
     4. Persists to database in ai_analysis.structured_data['advisory'].
     """

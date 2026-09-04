@@ -10,6 +10,7 @@ from app.models.database_models import (
     NearbyIncidentsResponse,
     AdvisorySubmissionRequest,
     AdvisoryResponse
+    , CommunityPostRequest, CommunityCommentRequest
 )
 from app.services.incident_service import (
     create_farmer_incident,
@@ -28,6 +29,10 @@ from app.services.community_confirmation_service import (
     get_incident_community_summary,
     get_nearby_incidents_for_farmer
 )
+from app.services.community_service import (
+    list_posts, get_post, create_post, create_comment,
+    add_helpful_reaction, get_problem, create_problem_comment, list_farmer_incidents, upload_community_photo
+)
 from app.services.advisory_service import (
     create_or_update_officer_advisory,
     get_incident_advisory
@@ -35,11 +40,151 @@ from app.services.advisory_service import (
 from app.services.voice_service import process_voice_for_incident
 from app.services.vision_service import process_vision_for_incident, process_multiple_vision_for_incident
 from app.services.stt_service import transcribe_audio
-from app.services.llm_service import extract_agricultural_meaning
+from app.services.llm_service import (
+    extract_agricultural_meaning,
+    validate_and_understand_agricultural_complaint,
+    evaluate_multimodal_evidence
+)
 from app.database.session import get_supabase_client
+from app.core.phone import normalize_phone
 
 router = APIRouter(tags=["Incidents"])
 
+
+def _community_error(exc: Exception):
+    if isinstance(exc, ValueError):
+        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"success": False, "message": str(exc)})
+    if isinstance(exc, RuntimeError):
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"success": False, "message": str(exc)})
+    return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"success": False, "message": str(exc)})
+
+
+@router.get("/community/posts", summary="List farmer community posts")
+async def community_posts(limit: int = Query(30, ge=1, le=50)):
+    try:
+        return list_posts(limit)
+    except Exception as exc:
+        raise _community_error(exc)
+
+
+@router.get("/community/my-issues", summary="List the current farmer's reported issues")
+async def community_my_issues(farmer_id: Optional[str] = Query(None), farmer_phone: Optional[str] = Query(None), limit: int = Query(30, ge=1, le=50)):
+    try:
+        return list_farmer_incidents(farmer_id, farmer_phone, limit)
+    except Exception as exc:
+        raise _community_error(exc)
+
+
+@router.get("/community/posts/{post_id}", summary="Get a farmer community post")
+async def community_post(post_id: str):
+    try:
+        return get_post(post_id)
+    except Exception as exc:
+        raise _community_error(exc)
+
+
+@router.post("/community/posts", status_code=status.HTTP_201_CREATED, summary="Create a farmer community post")
+async def create_community_post(payload: CommunityPostRequest):
+    try:
+        return create_post(payload.farmer_id, payload.farmer_phone, payload.content, payload.crop, payload.incident_id, payload.photo_url)
+    except Exception as exc:
+        raise _community_error(exc)
+
+
+@router.post("/community/posts/{post_id}/comments", status_code=status.HTTP_201_CREATED, summary="Add a farmer community comment")
+async def create_community_comment(post_id: str, payload: CommunityCommentRequest):
+    try:
+        return create_comment(post_id, payload.farmer_id, payload.farmer_phone, payload.content)
+    except Exception as exc:
+        raise _community_error(exc)
+
+
+@router.post("/community/problems/{problem_id}/comments", status_code=status.HTTP_201_CREATED, summary="Comment on a reported problem")
+async def create_problem_community_comment(problem_id: str, payload: CommunityCommentRequest):
+    try:
+        return create_problem_comment(problem_id, payload.farmer_id, payload.farmer_phone, payload.content)
+    except Exception as exc:
+        raise _community_error(exc)
+
+
+@router.post("/community/comments/{comment_id}/helpful", summary="Mark a community comment Helpful")
+async def mark_comment_helpful(comment_id: str, payload: Dict[str, Any] = Body(...)):
+    try:
+        return add_helpful_reaction(comment_id, payload.get("farmer_id"), payload.get("farmer_phone"))
+    except Exception as exc:
+        raise _community_error(exc)
+
+
+@router.get("/community/problems/{problem_id}", summary="Get a privacy-safe nearby problem discussion")
+async def community_problem(problem_id: str):
+    try:
+        return get_problem(problem_id)
+    except Exception as exc:
+        raise _community_error(exc)
+
+
+@router.post("/community/photos", summary="Upload a community photo")
+async def community_photo(file: UploadFile = File(...)):
+    try:
+        content_type = file.content_type or "image/jpeg"
+        if not content_type.startswith("image/"):
+            raise ValueError("Community uploads must be images.")
+        content = await file.read()
+        if not content or len(content) > 10 * 1024 * 1024:
+            raise ValueError("Community images must be between 1 byte and 10 MB.")
+        return {"success": True, "photo_url": upload_community_photo(content, file.filename or "community.jpg", content_type)}
+    except Exception as exc:
+        raise _community_error(exc)
+
+
+@router.get("/farmers/lookup", summary="Lookup farmer by mobile number")
+async def lookup_farmer(phone: str = Query(..., description="Farmer 10-digit mobile number")):
+    """
+    Checks if a farmer already exists in the database by phone number.
+    Returns farmer details if found, or exists: false if not registered yet.
+    """
+    try:
+        norm_phone = normalize_phone(phone)
+    except ValueError as ve:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"success": False, "message": str(ve)}
+        )
+    
+    client = get_supabase_client()
+    if not client:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"success": False, "message": "Database connection not configured"}
+        )
+    
+    try:
+        response = client.table("farmers").select("id, name, phone, preferred_language, village, district, state").eq("phone", norm_phone).limit(1).execute()
+        if response.data and len(response.data) > 0:
+            farmer_data = response.data[0]
+            return {
+                "success": True,
+                "exists": True,
+                "farmer": {
+                    "id": str(farmer_data.get("id")),
+                    "name": farmer_data.get("name"),
+                    "phone": farmer_data.get("phone"),
+                    "preferred_language": farmer_data.get("preferred_language"),
+                    "village": farmer_data.get("village"),
+                    "district": farmer_data.get("district"),
+                    "state": farmer_data.get("state"),
+                }
+            }
+        return {
+            "success": True,
+            "exists": False,
+            "farmer": None
+        }
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"success": False, "message": f"Database error: {str(exc)}"}
+        )
 
 
 @router.post(
@@ -167,25 +312,7 @@ async def submit_incident_form(
         incident_id = result["incident_id"]
         uploaded_photos = result.get("photos", [])
 
-        # 2. If photos are provided, evaluate each photo independently via Phase 5 Vision AI
-        if photos_bytes_list and len(photos_bytes_list) > 0:
-            try:
-                photos_data = []
-                for idx, p_bytes in enumerate(photos_bytes_list):
-                    p_url = uploaded_photos[idx] if idx < len(uploaded_photos) else None
-                    photos_data.append({"bytes": p_bytes, "url": p_url, "index": idx})
-                    
-                vision_ai_result = process_multiple_vision_for_incident(
-                    incident_id=incident_id,
-                    photos_data=photos_data
-                )
-                result["vision_ai"] = vision_ai_result
-                if vision_ai_result.get("farmer_notice"):
-                    result["farmer_notice"] = vision_ai_result["farmer_notice"]
-            except Exception as vision_err:
-                result["vision_ai_error"] = str(vision_err)
-
-        # 3. If voice audio is provided, process Voice AI in Phase 4
+        # 2. If voice audio is provided, process Voice AI
         if audio_bytes and len(audio_bytes) > 0:
             try:
                 voice_ai_result = await process_voice_for_incident(
@@ -199,8 +326,80 @@ async def submit_incident_form(
                 if voice_ai_result.get("summary"):
                     result["ai_summary"] = voice_ai_result["summary"]
             except Exception as voice_err:
-                # Note: Incident remains intact even if voice processing encounters error
                 result["voice_ai_error"] = str(voice_err)
+
+        # 3. If photos are provided, evaluate each photo independently via Phase 5 Vision AI (YOLO11)
+        #    AND Featherless Qwen3-VL Multimodal Reasoning
+        if photos_bytes_list and len(photos_bytes_list) > 0:
+            photos_data = []
+            for idx, p_bytes in enumerate(photos_bytes_list):
+                p_url = uploaded_photos[idx] if idx < len(uploaded_photos) else None
+                photos_data.append({"bytes": p_bytes, "url": p_url, "index": idx})
+                
+            vision_ai_result = {}
+            try:
+                vision_ai_result = process_multiple_vision_for_incident(
+                    incident_id=incident_id,
+                    photos_data=photos_data
+                )
+                result["vision_ai"] = vision_ai_result
+            except Exception as vision_err:
+                result["vision_ai_error"] = str(vision_err)
+
+            # Featherless Qwen3-VL Multimodal Reasoning Stage
+            try:
+                complaint_ctx = {
+                    "crop": crop,
+                    "description": effective_description,
+                    "language": language
+                }
+                multimodal_ai_result = await evaluate_multimodal_evidence(
+                    complaint=complaint_ctx,
+                    photos_data=photos_data,
+                    yolo_findings=vision_ai_result.get("images", []) if isinstance(vision_ai_result, dict) else []
+                )
+                result["multimodal_ai"] = multimodal_ai_result
+                result["safe_aeo_approach"] = multimodal_ai_result.get("safe_aeo_approach")
+                result["assessment"] = multimodal_ai_result.get("assessment")
+
+                # Merge multimodal evaluation into ai_analysis table
+                client = get_supabase_client()
+                if client:
+                    existing_ai = client.table("ai_analysis").select("*").eq("incident_id", incident_id).execute()
+                    if existing_ai.data and len(existing_ai.data) > 0:
+                        row = existing_ai.data[0]
+                        sd = row.get("structured_data")
+                        if not isinstance(sd, dict):
+                            sd = {}
+                        sd["multimodal"] = multimodal_ai_result
+                        sd["safe_aeo_approach"] = multimodal_ai_result.get("safe_aeo_approach")
+                        sd["assessment"] = multimodal_ai_result.get("assessment")
+                        client.table("ai_analysis").update({
+                            "structured_data": sd,
+                            "llm_summary": multimodal_ai_result.get("assessment", {}).get("summary") or row.get("llm_summary")
+                        }).eq("id", row["id"]).execute()
+
+                # INCIDENT-LEVEL ACCEPTANCE RULE:
+                # If at least ONE photo is RELEVANT or LIMITED_EVIDENCE -> Accept incident
+                # If ALL photos are NON_RELEVANT, NON_AGRICULTURAL, or ANALYSIS_FAILED -> Reject photos, ask for retry
+                images_eval = multimodal_ai_result.get("images", [])
+                any_useful = any(img.get("status") in ["RELEVANT", "LIMITED_EVIDENCE"] for img in images_eval)
+
+                if images_eval and not any_useful:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={
+                            "success": False,
+                            "photo_retry_required": True,
+                            "message": "The uploaded photo(s) did not show recognizable plant or crop problems related to your complaint. Your voice complaint has been preserved. Please upload a clearer photo of the affected plant.",
+                            "incident_id": incident_id,
+                            "image_evaluations": images_eval
+                        }
+                    )
+            except HTTPException:
+                raise
+            except Exception as mm_err:
+                result["multimodal_error"] = str(mm_err)
 
         return result
     except ValueError as ve:
@@ -338,17 +537,22 @@ async def analyze_confirmed_transcript(
         )
 
     try:
-        extracted = await extract_agricultural_meaning(
+        stage1 = await validate_and_understand_agricultural_complaint(
             transcript=transcript,
             language_hint=language
         )
+        complaint = stage1.get("complaint") or {}
         return {
             "success": True,
-            "crop_detected": extracted.get("crop_detected"),
-            "symptoms": extracted.get("symptoms", []),
-            "possible_conditions": extracted.get("possible_conditions", []),
-            "summary": extracted.get("llm_summary"),
-            "structured_data": extracted.get("structured_data"),
+            "agriculture_related": stage1.get("agriculture_related", False),
+            "reason": stage1.get("reason", ""),
+            "complaint": complaint,
+            "photo_guidance": stage1.get("photo_guidance", []),
+            "crop_detected": complaint.get("crop"),
+            "symptoms": complaint.get("symptoms", []),
+            "possible_conditions": [complaint.get("suspected_problem")] if complaint.get("suspected_problem") else [],
+            "summary": complaint.get("farmer_concern") or transcript[:200],
+            "structured_data": stage1,
             "requires_aeo_review": True,
         }
     except Exception as e:
@@ -771,7 +975,7 @@ async def update_case_workflow_status(
     "/incidents/{incident_id}/advisory",
     response_model=AdvisoryResponse,
     summary="Submit Official AEO Advisory with Local-Language TTS",
-    description="Records AEO-written advisory, translates to farmer preferred language with Gemini, and generates audio speech.",
+    description="Records AEO-written advisory, translates to farmer preferred language with Featherless AI, and generates audio speech.",
 )
 async def submit_officer_advisory(
     incident_id: str,

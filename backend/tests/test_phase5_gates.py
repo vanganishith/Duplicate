@@ -122,7 +122,7 @@ class TestPhase5ImageGates(unittest.TestCase):
         d.ellipse([100, 100, 300, 300], fill=(139, 69, 19)) # Brown fur
         d.ellipse([130, 130, 160, 160], fill=(20, 20, 20))  # Black nose
         
-        relevance = asyncio.run(evaluate_agricultural_relevance(img, gemini_api_key=None))
+        relevance = asyncio.run(evaluate_agricultural_relevance(img))
         self.assertFalse(relevance["accepted"])
         self.assertIn("crop or plant", relevance["reason"])
 
@@ -134,7 +134,7 @@ class TestPhase5ImageGates(unittest.TestCase):
         d.rectangle([50, 200, 350, 400], fill=(30, 60, 150)) # Blue shirt
         d.ellipse([120, 50, 280, 210], fill=(240, 190, 160)) # Face skin tone
         
-        relevance = asyncio.run(evaluate_agricultural_relevance(img, gemini_api_key=None))
+        relevance = asyncio.run(evaluate_agricultural_relevance(img))
         self.assertFalse(relevance["accepted"])
         self.assertIn("crop or plant", relevance["reason"])
 
@@ -146,7 +146,7 @@ class TestPhase5ImageGates(unittest.TestCase):
         d.rectangle([50, 150, 350, 300], fill=(180, 20, 20)) # Red car body
         d.rectangle([100, 80, 300, 150], fill=(50, 150, 220)) # Glass window
         
-        relevance = asyncio.run(evaluate_agricultural_relevance(img, gemini_api_key=None))
+        relevance = asyncio.run(evaluate_agricultural_relevance(img))
         self.assertFalse(relevance["accepted"])
         self.assertIn("crop or plant", relevance["reason"])
 
@@ -156,7 +156,7 @@ class TestPhase5ImageGates(unittest.TestCase):
         d = ImageDraw.Draw(img)
         d.rectangle([70, 70, 330, 330], fill=(0, 191, 255), outline=(255, 255, 0), width=4)
         
-        relevance = asyncio.run(evaluate_agricultural_relevance(img, gemini_api_key=None))
+        relevance = asyncio.run(evaluate_agricultural_relevance(img))
         self.assertFalse(relevance["accepted"])
 
     # 13. Healthy Plant -> ACCEPT

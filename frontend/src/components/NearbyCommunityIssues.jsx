@@ -165,6 +165,10 @@ export default function NearbyCommunityIssues({
                   key={issue.id}
                   className={`nearby-issue-card ${issue.has_similar_crop ? 'highlight-same-crop' : ''}`}
                   data-testid={`nearby-issue-card-${issue.id}`}
+                  onClick={() => onSelectExistingIssue(issue)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => { if (event.key === 'Enter') onSelectExistingIssue(issue); }}
                 >
                   <div className="nearby-card-top">
                     <div className="distance-badge-wrap">
@@ -214,9 +218,9 @@ export default function NearbyCommunityIssues({
                       <button
                         type="button"
                         className="btn btn-sm btn-me-too"
-                        onClick={() => handleMeTooClick(issue)}
                         disabled={confirmingId === issue.id}
                         data-testid={`me-too-btn-${issue.id}`}
+                        onClick={(event) => { event.stopPropagation(); handleMeTooClick(issue); }}
                       >
                         {confirmingId === issue.id ? 'Recording...' : '✋ Me Too'}
                       </button>
@@ -236,7 +240,7 @@ export default function NearbyCommunityIssues({
                       <button
                         type="button"
                         className="btn btn-sm btn-primary"
-                        onClick={() => handleMeTooClick(issue)}
+                        onClick={(event) => { event.stopPropagation(); handleMeTooClick(issue); }}
                       >
                         Confirm
                       </button>

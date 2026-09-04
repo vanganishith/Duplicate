@@ -38,14 +38,14 @@ class TestPhase12AeoAdvisory(unittest.TestCase):
         self.assertEqual(result, text)
 
     @patch("app.services.advisory_service.httpx.Client")
-    def test_localize_advisory_gemini_translation(self, mock_client_cls):
+    def test_localize_advisory_featherless_translation(self, mock_client_cls):
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            "candidates": [
+            "choices": [
                 {
-                    "content": {
-                        "parts": [{"text": "లీటరు నీటికి 5 మి.లీ వేప నూనెను పిచికారీ చేయండి."}]
+                    "message": {
+                        "content": "లీటరు నీటికి 5 మి.లీ వేప నూనెను పిచికారీ చేయండి."
                     }
                 }
             ]
@@ -54,7 +54,7 @@ class TestPhase12AeoAdvisory(unittest.TestCase):
         mock_client.post.return_value = mock_response
         mock_client_cls.return_value.__enter__.return_value = mock_client
 
-        with patch("app.core.config.settings.GEMINI_API_KEY", "test-key"):
+        with patch("app.core.config.settings.FEATHERLESS_API_KEY", "test-key"):
             result = localize_advisory_text("Spray neem oil at 5ml per liter.", target_language="Telugu")
             self.assertEqual(result, "లీటరు నీటికి 5 మి.లీ వేప నూనెను పిచికారీ చేయండి.")
 

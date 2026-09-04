@@ -484,11 +484,35 @@ export default function AudioRecorder({
           {isAnalyzingLlm && (
             <div className="ai-processing-notice">
               <span className="spinner-small"></span>
-              <span>Agricultural LLM analyzing confirmed text for crop & symptoms...</span>
+              <span>Featherless Qwen3-VL validating agricultural intent & extracting details...</span>
             </div>
           )}
 
-          {isConfirmed && extractedInsights && (
+          {isConfirmed && extractedInsights && extractedInsights.agriculture_related === false && (
+            <div className="alert alert-warning" style={{ marginTop: '16px', padding: '14px', borderRadius: '8px', border: '1px solid #fde68a', backgroundColor: '#fffbeb' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                <span style={{ fontSize: '1.4rem' }}>🌾</span>
+                <div>
+                  <strong style={{ display: 'block', marginBottom: '4px', fontSize: '0.95rem', color: '#78350f' }}>
+                    Please describe an agricultural or farming problem:
+                  </strong>
+                  <p style={{ margin: '0 0 10px 0', fontSize: '0.875rem', lineHeight: 1.5, color: '#92400e' }}>
+                    {extractedInsights.reason || 'The recorded voice does not appear to describe a crop disease, pest, plant damage, or farming issue. Please mention your crop, affected plant parts, or observed symptoms.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleReset}
+                    className="btn btn-sm btn-primary"
+                    style={{ fontSize: '0.85rem' }}
+                  >
+                    🔄 Record Voice Again
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isConfirmed && extractedInsights && extractedInsights.agriculture_related !== false && (
             <div className="live-extracted-badges">
               {extractedInsights.crop_detected && (
                 <div className="extracted-badge-item">

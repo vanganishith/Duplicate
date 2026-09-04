@@ -5,7 +5,7 @@ import uuid
 import json
 
 from app.main import app
-from app.services.stt_service import get_language_code, transcribe_audio, transcribe_audio_gemini
+from app.services.stt_service import get_language_code, transcribe_audio
 from app.services.llm_service import extract_agricultural_meaning, _parse_llm_json
 from app.services.voice_service import process_voice_for_incident
 
@@ -80,8 +80,8 @@ class TestPhase4VoiceHardenedSuite(unittest.TestCase):
             "possible_conditions": ["Chilli Leaf Curl Virus"],
             "llm_summary": "Farmer reports chilli leaf curling and whitefly infestation.",
             "requires_aeo_review": True,
-            "model_name": "gemini-2.0-flash",
-            "model_version": "2.0-flash"
+            "model_name": "Qwen/Qwen3-VL-30B-A3B-Instruct",
+            "model_version": "3.0-vl"
         }
         mock_db.table.return_value.insert.return_value.execute.return_value.data = [{"id": str(uuid.uuid4())}]
 
@@ -102,17 +102,23 @@ class TestPhase4VoiceHardenedSuite(unittest.TestCase):
     async def _async_test_crop_extraction(self, mock_client_cls):
         mock_resp = MagicMock(status_code=200)
         mock_resp.json.return_value = {
-            "candidates": [{
-                "content": {
-                    "parts": [{
-                        "text": json.dumps({
+            "choices": [{
+                "message": {
+                    "content": json.dumps({
+                        "agriculture_related": True,
+                        "reason": "Maize stem damage reported",
+                        "complaint": {
                             "crop": "Maize",
+                            "plant_part": "stem",
                             "symptoms": ["stem borer holes"],
-                            "possible_conditions": ["Fall Armyworm"],
-                            "summary": "Maize stem damage reported.",
-                            "requires_aeo_review": True
-                        })
-                    }]
+                            "duration": None,
+                            "progression": None,
+                            "severity": "moderate",
+                            "suspected_problem": "Fall Armyworm",
+                            "farmer_concern": "Maize stem damage reported."
+                        },
+                        "photo_guidance": ["Photo of stem"]
+                    })
                 }
             }]
         }
@@ -120,7 +126,7 @@ class TestPhase4VoiceHardenedSuite(unittest.TestCase):
         mock_client.post.return_value = mock_resp
         mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-        with patch("app.core.config.settings.GEMINI_API_KEY", "test-key"):
+        with patch("app.core.config.settings.FEATHERLESS_API_KEY", "test-key"):
             res = await extract_agricultural_meaning("మొక్కజొన్న పంటలో కాండం తొలిచే పురుగు వచ్చింది")
             self.assertEqual(res["crop_detected"], "Maize")
 
@@ -135,17 +141,23 @@ class TestPhase4VoiceHardenedSuite(unittest.TestCase):
     async def _async_test_symptom_extraction(self, mock_client_cls):
         mock_resp = MagicMock(status_code=200)
         mock_resp.json.return_value = {
-            "candidates": [{
-                "content": {
-                    "parts": [{
-                        "text": json.dumps({
+            "choices": [{
+                "message": {
+                    "content": json.dumps({
+                        "agriculture_related": True,
+                        "reason": "Paddy leaves yellowing and drying",
+                        "complaint": {
                             "crop": "Paddy",
+                            "plant_part": "leaves",
                             "symptoms": ["yellow leaves", "brown spots", "drying tip"],
-                            "possible_conditions": ["Brown Spot", "Blast"],
-                            "summary": "Paddy leaves yellowing and drying.",
-                            "requires_aeo_review": True
-                        })
-                    }]
+                            "duration": None,
+                            "progression": None,
+                            "severity": "moderate",
+                            "suspected_problem": "Brown Spot",
+                            "farmer_concern": "Paddy leaves yellowing and drying."
+                        },
+                        "photo_guidance": ["Photo of affected leaves"]
+                    })
                 }
             }]
         }
@@ -153,7 +165,7 @@ class TestPhase4VoiceHardenedSuite(unittest.TestCase):
         mock_client.post.return_value = mock_resp
         mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-        with patch("app.core.config.settings.GEMINI_API_KEY", "test-key"):
+        with patch("app.core.config.settings.FEATHERLESS_API_KEY", "test-key"):
             res = await extract_agricultural_meaning("Paddy leaves have brown spots and drying tips")
             self.assertEqual(len(res["symptoms"]), 3)
             self.assertIn("brown spots", res["symptoms"])
@@ -169,17 +181,23 @@ class TestPhase4VoiceHardenedSuite(unittest.TestCase):
     async def _async_test_missing_crop(self, mock_client_cls):
         mock_resp = MagicMock(status_code=200)
         mock_resp.json.return_value = {
-            "candidates": [{
-                "content": {
-                    "parts": [{
-                        "text": json.dumps({
+            "choices": [{
+                "message": {
+                    "content": json.dumps({
+                        "agriculture_related": True,
+                        "reason": "Yellowing reported without crop specified",
+                        "complaint": {
                             "crop": None,
+                            "plant_part": "leaves",
                             "symptoms": ["yellowing"],
-                            "possible_conditions": [],
-                            "summary": "Yellowing reported without crop specified.",
-                            "requires_aeo_review": True
-                        })
-                    }]
+                            "duration": None,
+                            "progression": None,
+                            "severity": "mild",
+                            "suspected_problem": None,
+                            "farmer_concern": "Yellowing reported without crop specified."
+                        },
+                        "photo_guidance": ["Photo of leaves"]
+                    })
                 }
             }]
         }
@@ -187,7 +205,7 @@ class TestPhase4VoiceHardenedSuite(unittest.TestCase):
         mock_client.post.return_value = mock_resp
         mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-        with patch("app.core.config.settings.GEMINI_API_KEY", "test-key"):
+        with patch("app.core.config.settings.FEATHERLESS_API_KEY", "test-key"):
             res = await extract_agricultural_meaning("ఆకులు ఎండిపోతున్నాయి")
             self.assertIsNone(res["crop_detected"])
 
@@ -202,18 +220,23 @@ class TestPhase4VoiceHardenedSuite(unittest.TestCase):
     async def _async_test_missing_duration(self, mock_client_cls):
         mock_resp = MagicMock(status_code=200)
         mock_resp.json.return_value = {
-            "candidates": [{
-                "content": {
-                    "parts": [{
-                        "text": json.dumps({
+            "choices": [{
+                "message": {
+                    "content": json.dumps({
+                        "agriculture_related": True,
+                        "reason": "Tomato wilting",
+                        "complaint": {
                             "crop": "Tomato",
-                            "duration": None,
+                            "plant_part": "stem",
                             "symptoms": ["wilting"],
-                            "possible_conditions": ["Bacterial Wilt"],
-                            "summary": "Tomato wilting.",
-                            "requires_aeo_review": True
-                        })
-                    }]
+                            "duration": None,
+                            "progression": None,
+                            "severity": "moderate",
+                            "suspected_problem": "Bacterial Wilt",
+                            "farmer_concern": "Tomato wilting."
+                        },
+                        "photo_guidance": ["Photo of wilting tomato"]
+                    })
                 }
             }]
         }
@@ -221,7 +244,7 @@ class TestPhase4VoiceHardenedSuite(unittest.TestCase):
         mock_client.post.return_value = mock_resp
         mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-        with patch("app.core.config.settings.GEMINI_API_KEY", "test-key"):
+        with patch("app.core.config.settings.FEATHERLESS_API_KEY", "test-key"):
             res = await extract_agricultural_meaning("Tomato plants are wilting")
             self.assertIsNone(res["structured_data"].get("duration"))
 
@@ -429,20 +452,25 @@ class TestPhase4VoiceHardenedSuite(unittest.TestCase):
     # =========================================================================
     @patch("app.services.llm_service.httpx.AsyncClient")
     async def _async_test_requires_aeo_review_enforcement(self, mock_client_cls):
-        # Even if the LLM falsely claimed requires_aeo_review: false
         mock_resp = MagicMock(status_code=200)
         mock_resp.json.return_value = {
-            "candidates": [{
-                "content": {
-                    "parts": [{
-                        "text": json.dumps({
+            "choices": [{
+                "message": {
+                    "content": json.dumps({
+                        "agriculture_related": True,
+                        "reason": "Cotton pest damage",
+                        "complaint": {
                             "crop": "Cotton",
+                            "plant_part": "boll",
                             "symptoms": ["bollworm"],
-                            "possible_conditions": ["Pink Bollworm"],
-                            "summary": "Cotton pest damage.",
-                            "requires_aeo_review": False  # malicious or buggy LLM output
-                        })
-                    }]
+                            "duration": None,
+                            "progression": None,
+                            "severity": "high",
+                            "suspected_problem": "Pink Bollworm",
+                            "farmer_concern": "Cotton pest damage."
+                        },
+                        "photo_guidance": ["Photo of damaged boll"]
+                    })
                 }
             }]
         }
@@ -450,7 +478,7 @@ class TestPhase4VoiceHardenedSuite(unittest.TestCase):
         mock_client.post.return_value = mock_resp
         mock_client_cls.return_value.__aenter__.return_value = mock_client
 
-        with patch("app.core.config.settings.GEMINI_API_KEY", "test-key"):
+        with patch("app.core.config.settings.FEATHERLESS_API_KEY", "test-key"):
             res = await extract_agricultural_meaning("Cotton pest damage observed")
             # Must be strictly True
             self.assertTrue(res["requires_aeo_review"])

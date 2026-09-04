@@ -21,8 +21,8 @@ async def process_voice_for_incident(
     
     1. Verifies incident exists
     2. Uploads audio to Supabase Storage and records audio_url on incident
-    3. Transcribes audio via Google STT (Primary) / Gemini Multimodal (Fallback)
-    4. Extracts structured agricultural meaning via LLM (strict truthfulness, requires_aeo_review=True)
+    3. Transcribes audio via AI4Bharat IndicConformer (Speech-to-Text)
+    4. Extracts structured agricultural meaning via Featherless AI Qwen3-VL
     5. Inserts results into existing `ai_analysis` table referencing incident_id
     6. Updates incident status to 'AI_ANALYZED' without modifying original description
     """
@@ -53,7 +53,7 @@ async def process_voice_for_incident(
     except Exception as storage_err:
         logger.warning(f"[VoicePipeline] Storage upload skipped/failed: {str(storage_err)}")
 
-    # 3. Transcribe Audio (Google STT primary -> Gemini fallback)
+    # 3. Transcribe Audio via IndicConformer ASR
     logger.info(f"[VoicePipeline] Transcribing audio for incident {incident_id}...")
     transcript, detected_language = await transcribe_audio(
         audio_bytes=audio_bytes,

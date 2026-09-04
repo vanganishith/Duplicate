@@ -231,8 +231,7 @@ class VisionModelEngine:
 def analyze_crop_image(
     image_bytes: bytes,
     confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
-    iou_threshold: float = DEFAULT_IOU_THRESHOLD,
-    gemini_api_key: Optional[str] = None
+    iou_threshold: float = DEFAULT_IOU_THRESHOLD
 ) -> Dict[str, Any]:
     """
     Main Phase 5 Agricultural Disease Vision Pipeline:
